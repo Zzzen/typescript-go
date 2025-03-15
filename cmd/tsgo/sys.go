@@ -7,12 +7,12 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/microsoft/typescript-go/internal/bundled"
-	"github.com/microsoft/typescript-go/internal/core"
-	"github.com/microsoft/typescript-go/internal/execute"
-	"github.com/microsoft/typescript-go/internal/tspath"
-	"github.com/microsoft/typescript-go/internal/vfs"
-	"github.com/microsoft/typescript-go/internal/vfs/osvfs"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/bundled"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/execute"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs/osvfs"
 )
 
 type osSys struct {

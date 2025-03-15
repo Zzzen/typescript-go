@@ -14,16 +14,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/microsoft/typescript-go/internal/ast"
-	"github.com/microsoft/typescript-go/internal/bundled"
-	ts "github.com/microsoft/typescript-go/internal/compiler"
-	"github.com/microsoft/typescript-go/internal/compiler/diagnostics"
-	"github.com/microsoft/typescript-go/internal/core"
-	"github.com/microsoft/typescript-go/internal/diagnosticwriter"
-	"github.com/microsoft/typescript-go/internal/execute"
-	"github.com/microsoft/typescript-go/internal/scanner"
-	"github.com/microsoft/typescript-go/internal/tspath"
-	"github.com/microsoft/typescript-go/internal/vfs/osvfs"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/bundled"
+	ts "github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler/diagnostics"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnosticwriter"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/execute"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs/osvfs"
 )
 
 func printDiagnostic(d *ast.Diagnostic, level int, comparePathOptions tspath.ComparePathsOptions) {
