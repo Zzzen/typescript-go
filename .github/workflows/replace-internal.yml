@@ -34,6 +34,7 @@ jobs:
         working-directory: microsoft-typescript-go
         run: |
           go run replace_internal.go
+          mv internal/bundled/libs use-at-your-own-risk/bundled 
 
       - name: Update go.mod
         working-directory: microsoft-typescript-go
