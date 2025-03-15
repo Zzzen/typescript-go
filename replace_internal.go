@@ -55,7 +55,12 @@ func processFile(path string, info os.FileInfo, err error) error {
 			continue
 		}
 
-		// Replace "internal" with "use-at-your-own-risk" in import paths
+		// Handle single line imports
+		if strings.HasPrefix(strings.TrimSpace(line), "import ") && strings.Contains(line, "\"github.com/microsoft/typescript-go/internal/") {
+			line = strings.Replace(line, "/microsoft/typescript-go/internal/", "/Zzzen/typescript-go/use-at-your-own-risk/", 1)
+		}
+
+		// Replace "internal" with "use-at-your-own-risk" in import paths within import blocks
 		if inImportBlock {
 			line = strings.Replace(line, "/microsoft/typescript-go/internal/", "/Zzzen/typescript-go/use-at-your-own-risk/", 1)
 		}
