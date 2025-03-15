@@ -1,7 +1,7 @@
 // Package diagnostics contains generated localizable diagnostic messages.
 package diagnostics
 
-import "github.com/microsoft/typescript-go/internal/stringutil"
+import "github.com/Zzzen/typescript-go/use-at-your-own-risk/stringutil"
 
 //go:generate go run generate.go -output ./diagnostics_generated.go
 //go:generate go tool golang.org/x/tools/cmd/stringer -type=Category -output=stringer_generated.go

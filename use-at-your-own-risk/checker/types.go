@@ -6,6 +6,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/evaluator"
 )
 
 //go:generate go tool golang.org/x/tools/cmd/stringer -type=SignatureKind -output=stringer_generated.go
@@ -328,7 +329,7 @@ type TypeNodeLinks struct {
 // Links for enum members
 
 type EnumMemberLinks struct {
-	value EvaluatorResult // Constant value of enum member
+	value evaluator.Result // Constant value of enum member
 }
 
 // Links for assertion expressions
@@ -662,11 +663,6 @@ type LiteralType struct {
 	value       any   // string | jsnum.Number | bool | PseudoBigInt | nil (computed enum)
 	freshType   *Type // Fresh version of type
 	regularType *Type // Regular version of type
-}
-
-type PseudoBigInt struct {
-	negative    bool
-	base10Value string
 }
 
 // UniqueESSymbolTypeData

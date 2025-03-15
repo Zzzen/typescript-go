@@ -1,6 +1,6 @@
 package checker
 
-import "github.com/microsoft/typescript-go/internal/core"
+import "github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 
 // TypeMapperKind
 

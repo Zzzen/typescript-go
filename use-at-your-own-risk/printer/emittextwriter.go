@@ -1,6 +1,6 @@
 package printer
 
-import "github.com/microsoft/typescript-go/internal/ast"
+import "github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 
 // Externally opaque interface for printing text
 type EmitTextWriter interface {
