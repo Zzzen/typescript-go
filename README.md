@@ -1,3 +1,33 @@
+# About this fork
+
+This fork of the Microsoft TypeScript-Go project makes the internal packages accessible by exposing them under the `use-at-your-own-risk` path. The original project keeps these packages as internal, which prevents external usage according to Go's module system.
+
+## Why "use-at-your-own-risk"?
+
+The packages under `use-at-your-own-risk/` were originally designed for internal use only. They:
+
+- May change without notice
+- Don't guarantee API stability
+- Might have incomplete documentation
+- Could contain implementation details not meant for public consumption
+
+## Usage
+
+Instead of importing from the internal package:
+
+```go
+import "github.com/microsoft/typescript-go/internal/ast"  // Not allowed by Go
+```
+
+You can now import from the exposed package:
+
+```go
+import "github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
+```
+
+## Maintenance
+This repository is automatically synchronized with the upstream Microsoft repository through GitHub Actions. When Microsoft makes changes to their internal packages, this fork will update the corresponding use-at-your-own-risk packages.
+
 # TypeScript 7
 
 [Not sure what this is? Read the announcement post!](https://devblogs.microsoft.com/typescript/typescript-native-port/)
