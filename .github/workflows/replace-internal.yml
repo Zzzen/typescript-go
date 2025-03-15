@@ -1,0 +1,58 @@
+name: Replace Internal with Use-At-Your-Own-Risk
+
+on:
+  workflow_dispatch:  # Manual trigger
+  schedule:
+    - cron: '0 0 * * 0'  # Run weekly on Sunday at midnight UTC
+
+jobs:
+  replace-internal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: 'typescript-go-fork'
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          check-latest: true
+
+      - name: Clone Microsoft TypeScript-Go
+        run: |
+          git clone --depth=1 https://github.com/microsoft/typescript-go.git microsoft-typescript-go
+          cd microsoft-typescript-go
+          echo "MICROSOFT_COMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Copy replace_internal.go to Microsoft repo
+        run: |
+          cp typescript-go-fork/replace_internal.go microsoft-typescript-go/
+
+      - name: Run replace_internal.go
+        working-directory: microsoft-typescript-go
+        run: |
+          go run replace_internal.go
+
+      - name: Update go.mod
+        working-directory: microsoft-typescript-go
+        run: |
+          sed -i 's|module github.com/microsoft/typescript-go|module github.com/Zzzen/typescript-go|g' go.mod
+          go mod tidy
+
+      - name: Copy modified files back to fork
+        run: |
+          rm -rf typescript-go-fork/use-at-your-own-risk
+          cp -r microsoft-typescript-go/use-at-your-own-risk typescript-go-fork/
+          cp microsoft-typescript-go/go.mod typescript-go-fork/
+          cp microsoft-typescript-go/go.sum typescript-go-fork/
+
+      - name: Commit and push changes
+        working-directory: typescript-go-fork
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add use-at-your-own-risk go.mod go.sum
+          git commit -m "Update from microsoft/typescript-go@${MICROSOFT_COMMIT}" || echo "No changes to commit"
+          git push

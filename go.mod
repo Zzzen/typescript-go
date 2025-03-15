@@ -1,4 +1,4 @@
-module github.com/microsoft/typescript-go
+module github.com/Zzzen/typescript-go
 
 go 1.24.0
 
