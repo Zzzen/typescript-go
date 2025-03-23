@@ -34,11 +34,21 @@ func executeCommandLineWorker(sys System, cb cbType, commandLine *tsoptions.Pars
 		return ExitStatusDiagnosticsPresent_OutputsSkipped, nil
 	}
 
-	if commandLine.CompilerOptions().Init.IsTrue() ||
-		commandLine.CompilerOptions().Version.IsTrue() ||
-		// commandLine.CompilerOptions().Help != nil ||
-		// commandLine.CompilerOptions().All != nil ||
-		commandLine.CompilerOptions().Watch.IsTrue() && commandLine.CompilerOptions().ListFilesOnly.IsTrue() {
+	if commandLine.CompilerOptions().Init.IsTrue() {
+		return ExitStatusNotImplemented, nil
+	}
+
+	if commandLine.CompilerOptions().Version.IsTrue() {
+		printVersion(sys)
+		return ExitStatusSuccess, nil
+	}
+
+	if commandLine.CompilerOptions().Help.IsTrue() || commandLine.CompilerOptions().All.IsTrue() {
+		printHelp(sys, commandLine)
+		return ExitStatusSuccess, nil
+	}
+
+	if commandLine.CompilerOptions().Watch.IsTrue() && commandLine.CompilerOptions().ListFilesOnly.IsTrue() {
 		return ExitStatusNotImplemented, nil
 	}
 
@@ -71,8 +81,8 @@ func executeCommandLineWorker(sys System, cb cbType, commandLine *tsoptions.Pars
 		if commandLine.CompilerOptions().ShowConfig.IsTrue() {
 			reportDiagnostic(ast.NewCompilerDiagnostic(diagnostics.Cannot_find_a_tsconfig_json_file_at_the_current_directory_Colon_0, tspath.NormalizePath(sys.GetCurrentDirectory())))
 		} else {
-			// print version
-			// print help
+			printVersion(sys)
+			printHelp(sys, commandLine)
 		}
 		return ExitStatusDiagnosticsPresent_OutputsSkipped, nil
 	}
@@ -215,7 +225,7 @@ func compileAndEmit(sys System, program *compiler.Program, reportDiagnostic diag
 	emitResult := &compiler.EmitResult{EmitSkipped: true, Diagnostics: []*ast.Diagnostic{}}
 	if !options.ListFilesOnly.IsTrue() {
 		// !!! Emit is not yet fully implemented, will not emit unless `outfile` specified
-		emitResult = program.Emit(&compiler.EmitOptions{})
+		emitResult = program.Emit(compiler.EmitOptions{})
 	}
 	diagnostics = append(diagnostics, emitResult.Diagnostics...)
 
