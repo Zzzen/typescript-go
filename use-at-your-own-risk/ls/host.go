@@ -4,6 +4,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs"
 )
@@ -24,4 +25,6 @@ type Host interface {
 	// because they were bidirectionally interdependent.
 	GetProgram() *compiler.Program
 	GetDefaultLibraryPath() string
+	GetPositionEncoding() lsproto.PositionEncodingKind
+	GetScriptInfo(fileName string) ScriptInfo
 }

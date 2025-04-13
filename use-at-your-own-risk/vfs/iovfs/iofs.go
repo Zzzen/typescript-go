@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"strings"
 
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/stringutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs/internal"
@@ -59,7 +60,10 @@ func From(fsys fs.FS, useCaseSensitiveFileNames bool) vfs.FS {
 		writeFile = func(path string, content string, writeByteOrderMark bool) error {
 			rest, _ := strings.CutPrefix(path, "/")
 			if writeByteOrderMark {
-				content = "\uFEFF" + content
+				// Strada uses \uFEFF because NodeJS requires it, but substitutes it with the correct BOM based on the
+				// output encoding. \uFEFF is actually the BOM for big-endian UTF-16. For UTF-8 the actual BOM is
+				// \xEF\xBB\xBF.
+				content = stringutil.AddUTF8ByteOrderMark(content)
 			}
 			return fsys.WriteFile(rest, []byte(content), 0o666)
 		}
