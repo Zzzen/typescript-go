@@ -5,8 +5,8 @@ import (
 	"sync"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
@@ -76,6 +76,7 @@ type Parser struct {
 	jsdocCommentRangesSpace []ast.CommentRange
 	jsdocTagCommentsSpace   []string
 	reparseList             []*ast.Node
+	commonJSModuleIndicator *ast.Node
 }
 
 var viableKeywordSuggestions = scanner.GetViableKeywordSuggestions()
@@ -199,7 +200,7 @@ func (p *Parser) initializeState(fileName string, path tspath.Path, sourceText s
 	p.sourceText = sourceText
 	p.languageVersion = languageVersion
 	p.scriptKind = ensureScriptKind(fileName, scriptKind)
-	p.languageVariant = getLanguageVariant(p.scriptKind)
+	p.languageVariant = ast.GetLanguageVariant(p.scriptKind)
 	switch p.scriptKind {
 	case core.ScriptKindJS, core.ScriptKindJSX:
 		p.contextFlags = ast.NodeFlagsJavaScriptFile
@@ -346,6 +347,7 @@ func (p *Parser) finishSourceFile(result *ast.SourceFile, isDeclarationFile bool
 	p.processPragmasIntoFields(result)
 	result.SetDiagnostics(attachFileToDiagnostics(p.diagnostics, result))
 	result.ExternalModuleIndicator = isFileProbablyExternalModule(result) // !!!
+	result.CommonJSModuleIndicator = p.commonJSModuleIndicator
 	result.IsDeclarationFile = isDeclarationFile
 	result.LanguageVersion = p.languageVersion
 	result.LanguageVariant = p.languageVariant
@@ -1400,6 +1402,7 @@ func (p *Parser) parseExpressionOrLabeledStatement() *ast.Statement {
 	result := p.factory.NewExpressionStatement(expression)
 	p.finishNode(result, pos)
 	p.withJSDoc(result, hasJSDoc && !hasParen)
+	p.reparseCommonJS(result)
 	return result
 }
 
@@ -1883,7 +1886,6 @@ func (p *Parser) parseErrorForMissingSemicolonAfter(node *ast.Node) {
 	if node.Kind == ast.KindIdentifier {
 		expressionText = node.AsIdentifier().Text
 	}
-	// !!! Also call isIdentifierText(expressionText, languageVersion)
 	if expressionText == "" {
 		p.parseErrorAtCurrentToken(diagnostics.X_0_expected, scanner.TokenToString(ast.KindSemicolonToken))
 		return
@@ -5931,7 +5933,7 @@ func (p *Parser) scanClassMemberStart() bool {
 		//      public foo() ...     // true
 		//      public @dec blah ... // true; we will then report an error later
 		//      export public ...    // true; we will then report an error later
-		if isClassMemberModifier(idToken) {
+		if ast.IsClassMemberModifier(idToken) {
 			return true
 		}
 		p.nextToken()
@@ -6340,14 +6342,6 @@ func (p *Parser) inAwaitContext() bool {
 
 func (p *Parser) skipRangeTrivia(textRange core.TextRange) core.TextRange {
 	return core.NewTextRange(scanner.SkipTrivia(p.sourceText, textRange.Pos()), textRange.End())
-}
-
-func isClassMemberModifier(token ast.Kind) bool {
-	return isParameterPropertyModifier(token) || token == ast.KindStaticKeyword || token == ast.KindOverrideKeyword || token == ast.KindAccessorKeyword
-}
-
-func isParameterPropertyModifier(kind ast.Kind) bool {
-	return ast.ModifierToFlag(kind)&ast.ModifierFlagsParameterPropertyModifier != 0
 }
 
 func isKeyword(token ast.Kind) bool {

@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler/module"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/module"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/repo"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/baseline"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"

@@ -3,7 +3,7 @@ package tsoptions
 import (
 	"sync"
 
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler/diagnostics"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 )
 
 type DidYouMeanOptionsDiagnostics struct {

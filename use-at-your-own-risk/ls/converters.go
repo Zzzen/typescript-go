@@ -9,8 +9,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 )
 
@@ -163,7 +163,7 @@ func DocumentURIToFileName(uri lsproto.DocumentUri) string {
 		if len(path) >= 4 {
 			if nextSlash := strings.IndexByte(path[1:], '/'); nextSlash != -1 {
 				if possibleDrive, _ := url.PathUnescape(path[1 : nextSlash+2]); strings.HasSuffix(possibleDrive, ":/") {
-					return possibleDrive + path[len(possibleDrive)+1:]
+					return possibleDrive + path[nextSlash+2:]
 				}
 			}
 		}

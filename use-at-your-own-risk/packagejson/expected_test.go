@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler/packagejson"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
 	"gotest.tools/v3/assert"
 )
 

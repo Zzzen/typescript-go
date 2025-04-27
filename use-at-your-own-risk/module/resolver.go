@@ -7,9 +7,9 @@ import (
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler/diagnostics"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler/packagejson"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/semver"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )

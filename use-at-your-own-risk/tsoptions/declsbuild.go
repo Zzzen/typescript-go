@@ -3,7 +3,7 @@ package tsoptions
 import (
 	"slices"
 
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler/diagnostics"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 )
 
 var BuildOpts = slices.Concat(commonOptionsWithBuild, optionsForBuild)

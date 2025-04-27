@@ -3,8 +3,8 @@ package module
 import (
 	"sync"
 
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler/packagejson"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
 )
 
 type ModeAwareCache[T any] map[ModeAwareCacheKey]T

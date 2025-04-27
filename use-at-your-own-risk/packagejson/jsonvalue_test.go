@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	json2 "github.com/go-json-experiment/json"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler/packagejson"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
 	"gotest.tools/v3/assert"
 )
 
