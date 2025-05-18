@@ -1,6 +1,8 @@
 package compiler
 
 import (
+	"context"
+
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
@@ -32,7 +34,11 @@ func (host *emitHost) WriteFile(fileName string, text string, writeByteOrderMark
 }
 
 func (host *emitHost) GetEmitResolver(file *ast.SourceFile, skipDiagnostics bool) printer.EmitResolver {
-	checker := host.program.GetTypeCheckerForFile(file)
+	// The context and done function don't matter in tsc, currently the only caller of this function.
+	// But if this ever gets used by LSP code, we'll need to thread the context properly and pass the
+	// done function to the caller to ensure resources are cleaned up at the end of the request.
+	checker, done := host.program.GetTypeCheckerForFile(context.TODO(), file)
+	defer done()
 	return checker.GetEmitResolver(file, skipDiagnostics)
 }
 

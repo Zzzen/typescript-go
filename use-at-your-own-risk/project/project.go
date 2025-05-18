@@ -1,7 +1,10 @@
 package project
 
 import (
+	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 
@@ -17,10 +20,9 @@ import (
 )
 
 //go:generate go tool golang.org/x/tools/cmd/stringer -type=Kind -output=project_stringer_generated.go
+const hr = "-----------------------------------------------"
 
 var projectNamer = &namer{}
-
-var _ ls.Host = (*Project)(nil)
 
 type Kind int
 
@@ -29,6 +31,42 @@ const (
 	KindConfigured
 	KindAutoImportProvider
 	KindAuxiliary
+)
+
+type snapshot struct {
+	project          *Project
+	positionEncoding lsproto.PositionEncodingKind
+	program          *compiler.Program
+}
+
+// GetLineMap implements ls.Host.
+func (s *snapshot) GetLineMap(fileName string) *ls.LineMap {
+	file := s.program.GetSourceFile(fileName)
+	scriptInfo := s.project.host.GetScriptInfoByPath(file.Path())
+	if file.Version == scriptInfo.Version() {
+		return scriptInfo.LineMap()
+	}
+	return ls.ComputeLineStarts(file.Text())
+}
+
+// GetPositionEncoding implements ls.Host.
+func (s *snapshot) GetPositionEncoding() lsproto.PositionEncodingKind {
+	return s.positionEncoding
+}
+
+// GetProgram implements ls.Host.
+func (s *snapshot) GetProgram() *compiler.Program {
+	return s.program
+}
+
+var _ ls.Host = (*snapshot)(nil)
+
+type PendingReload int
+
+const (
+	PendingReloadNone PendingReload = iota
+	PendingReloadFileNames
+	PendingReloadFull
 )
 
 type ProjectHost interface {
@@ -41,24 +79,30 @@ type ProjectHost interface {
 	OnDiscoveredSymlink(info *ScriptInfo)
 	Log(s string)
 	PositionEncoding() lsproto.PositionEncodingKind
+
+	IsWatchEnabled() bool
+	Client() Client
 }
+
+var _ compiler.CompilerHost = (*Project)(nil)
 
 type Project struct {
 	host ProjectHost
-	mu   sync.Mutex
 
 	name string
 	kind Kind
 
+	dirtyStateMu              sync.Mutex
 	initialLoadPending        bool
 	dirty                     bool
 	version                   int
 	hasAddedOrRemovedFiles    bool
 	hasAddedOrRemovedSymlinks bool
 	deferredClose             bool
-	reloadConfig              bool
+	pendingReload             PendingReload
 
-	currentDirectory string
+	comparePathsOptions tspath.ComparePathsOptions
+	currentDirectory    string
 	// Inferred projects only
 	rootPath tspath.Path
 
@@ -66,10 +110,17 @@ type Project struct {
 	configFilePath tspath.Path
 	// rootFileNames was a map from Path to { NormalizedPath, ScriptInfo? } in the original code.
 	// But the ProjectService owns script infos, so it's not clear why there was an extra pointer.
-	rootFileNames   *collections.OrderedMap[tspath.Path, string]
-	compilerOptions *core.CompilerOptions
-	languageService *ls.LanguageService
-	program         *compiler.Program
+	rootFileNames     *collections.OrderedMap[tspath.Path, string]
+	compilerOptions   *core.CompilerOptions
+	parsedCommandLine *tsoptions.ParsedCommandLine
+	programMu         sync.Mutex
+	program           *compiler.Program
+	checkerPool       *checkerPool
+
+	// Watchers
+	rootFilesWatch          *watchedFiles[[]string]
+	failedLookupsWatch      *watchedFiles[map[tspath.Path]string]
+	affectingLocationsWatch *watchedFiles[map[tspath.Path]string]
 }
 
 func NewConfiguredProject(configFileName string, configFilePath tspath.Path, host ProjectHost) *Project {
@@ -77,6 +128,10 @@ func NewConfiguredProject(configFileName string, configFilePath tspath.Path, hos
 	project.configFileName = configFileName
 	project.configFilePath = configFilePath
 	project.initialLoadPending = true
+	client := host.Client()
+	if host.IsWatchEnabled() && client != nil {
+		project.rootFilesWatch = newWatchedFiles(client, lsproto.WatchKindChange|lsproto.WatchKindCreate|lsproto.WatchKindDelete, core.Identity)
+	}
 	return project
 }
 
@@ -96,48 +151,47 @@ func NewProject(name string, kind Kind, currentDirectory string, host ProjectHos
 		currentDirectory: currentDirectory,
 		rootFileNames:    &collections.OrderedMap[tspath.Path, string]{},
 	}
-	project.languageService = ls.NewLanguageService(project)
+	project.comparePathsOptions = tspath.ComparePathsOptions{
+		CurrentDirectory:          currentDirectory,
+		UseCaseSensitiveFileNames: host.FS().UseCaseSensitiveFileNames(),
+	}
+	client := host.Client()
+	if host.IsWatchEnabled() && client != nil {
+		project.failedLookupsWatch = newWatchedFiles(client, lsproto.WatchKindCreate, func(data map[tspath.Path]string) []string {
+			return slices.Sorted(maps.Values(data))
+		})
+		project.affectingLocationsWatch = newWatchedFiles(client, lsproto.WatchKindChange|lsproto.WatchKindCreate|lsproto.WatchKindDelete, func(data map[tspath.Path]string) []string {
+			return slices.Sorted(maps.Values(data))
+		})
+	}
 	project.markAsDirty()
 	return project
 }
 
-// FS implements LanguageServiceHost.
+// FS implements compiler.CompilerHost.
 func (p *Project) FS() vfs.FS {
 	return p.host.FS()
 }
 
-// DefaultLibraryPath implements LanguageServiceHost.
+// DefaultLibraryPath implements compiler.CompilerHost.
 func (p *Project) DefaultLibraryPath() string {
 	return p.host.DefaultLibraryPath()
 }
 
-// GetCompilerOptions implements LanguageServiceHost.
-func (p *Project) GetCompilerOptions() *core.CompilerOptions {
-	return p.compilerOptions
-}
-
-// GetCurrentDirectory implements LanguageServiceHost.
+// GetCurrentDirectory implements compiler.CompilerHost.
 func (p *Project) GetCurrentDirectory() string {
 	return p.currentDirectory
 }
 
-// GetProjectVersion implements LanguageServiceHost.
-func (p *Project) GetProjectVersion() int {
-	return p.version
-}
-
-// GetRootFileNames implements LanguageServiceHost.
 func (p *Project) GetRootFileNames() []string {
-	fileNames := make([]string, 0, p.rootFileNames.Size())
-	for path, fileName := range p.rootFileNames.Entries() {
-		if p.host.GetScriptInfoByPath(path) != nil {
-			fileNames = append(fileNames, fileName)
-		}
-	}
-	return fileNames
+	return slices.Collect(p.rootFileNames.Values())
 }
 
-// GetSourceFile implements LanguageServiceHost.
+func (p *Project) GetCompilerOptions() *core.CompilerOptions {
+	return p.compilerOptions
+}
+
+// GetSourceFile implements compiler.CompilerHost.
 func (p *Project) GetSourceFile(fileName string, path tspath.Path, languageVersion core.ScriptTarget) *ast.SourceFile {
 	scriptKind := p.getScriptKind(fileName)
 	if scriptInfo := p.getOrCreateScriptInfoAndAttachToProject(fileName, scriptKind); scriptInfo != nil {
@@ -149,40 +203,30 @@ func (p *Project) GetSourceFile(fileName string, path tspath.Path, languageVersi
 			oldSourceFile = p.program.GetSourceFileByPath(scriptInfo.path)
 			oldCompilerOptions = p.program.GetCompilerOptions()
 		}
-		return p.host.DocumentRegistry().AcquireDocument(scriptInfo, p.GetCompilerOptions(), oldSourceFile, oldCompilerOptions)
+		return p.host.DocumentRegistry().AcquireDocument(scriptInfo, p.compilerOptions, oldSourceFile, oldCompilerOptions)
 	}
 	return nil
 }
 
-// GetProgram implements LanguageServiceHost. Updates the program if needed.
+// Updates the program if needed.
 func (p *Project) GetProgram() *compiler.Program {
 	p.updateIfDirty()
 	return p.program
 }
 
-// NewLine implements LanguageServiceHost.
+// NewLine implements compiler.CompilerHost.
 func (p *Project) NewLine() string {
 	return p.host.NewLine()
 }
 
-// Trace implements LanguageServiceHost.
+// Trace implements compiler.CompilerHost.
 func (p *Project) Trace(msg string) {
 	p.log(msg)
 }
 
-// GetDefaultLibraryPath implements ls.Host.
+// GetDefaultLibraryPath implements compiler.CompilerHost.
 func (p *Project) GetDefaultLibraryPath() string {
 	return p.host.DefaultLibraryPath()
-}
-
-// GetScriptInfo implements ls.Host.
-func (p *Project) GetScriptInfo(fileName string) ls.ScriptInfo {
-	return p.host.GetScriptInfoByPath(p.toPath(fileName))
-}
-
-// GetPositionEncoding implements ls.Host.
-func (p *Project) GetPositionEncoding() lsproto.PositionEncodingKind {
-	return p.host.PositionEncoding()
 }
 
 func (p *Project) Name() string {
@@ -201,8 +245,116 @@ func (p *Project) CurrentProgram() *compiler.Program {
 	return p.program
 }
 
-func (p *Project) LanguageService() *ls.LanguageService {
-	return p.languageService
+func (p *Project) GetLanguageServiceForRequest(ctx context.Context) (*ls.LanguageService, func()) {
+	if core.GetRequestID(ctx) == "" {
+		panic("context must already have a request ID")
+	}
+	program := p.GetProgram()
+	checkerPool := p.checkerPool
+	snapshot := &snapshot{
+		project:          p,
+		positionEncoding: p.host.PositionEncoding(),
+		program:          program,
+	}
+	languageService := ls.NewLanguageService(ctx, snapshot)
+	cleanup := func() {
+		if checkerPool.isRequestCheckerInUse(core.GetRequestID(ctx)) {
+			panic(fmt.Errorf("checker for request ID %s not returned to pool at end of request", core.GetRequestID(ctx)))
+		}
+	}
+	return languageService, cleanup
+}
+
+func (p *Project) getRootFileWatchGlobs() []string {
+	if p.kind == KindConfigured {
+		globs := p.parsedCommandLine.WildcardDirectories()
+		result := make([]string, 0, len(globs)+1)
+		result = append(result, p.configFileName)
+		for dir, recursive := range globs {
+			result = append(result, fmt.Sprintf("%s/%s", dir, core.IfElse(recursive, recursiveFileGlobPattern, fileGlobPattern)))
+		}
+		for _, fileName := range p.parsedCommandLine.LiteralFileNames() {
+			result = append(result, fileName)
+		}
+		return result
+	}
+	return nil
+}
+
+func (p *Project) getModuleResolutionWatchGlobs() (failedLookups map[tspath.Path]string, affectingLocaions map[tspath.Path]string) {
+	failedLookups = make(map[tspath.Path]string)
+	affectingLocaions = make(map[tspath.Path]string)
+	for _, resolvedModulesInFile := range p.program.GetResolvedModules() {
+		for _, resolvedModule := range resolvedModulesInFile {
+			for _, failedLookupLocation := range resolvedModule.FailedLookupLocations {
+				path := p.toPath(failedLookupLocation)
+				if _, ok := failedLookups[path]; !ok {
+					failedLookups[path] = failedLookupLocation
+				}
+			}
+			for _, affectingLocation := range resolvedModule.AffectingLocations {
+				path := p.toPath(affectingLocation)
+				if _, ok := affectingLocaions[path]; !ok {
+					affectingLocaions[path] = affectingLocation
+				}
+			}
+		}
+	}
+	return failedLookups, affectingLocaions
+}
+
+func (p *Project) updateWatchers(ctx context.Context) {
+	client := p.host.Client()
+	if !p.host.IsWatchEnabled() || client == nil {
+		return
+	}
+
+	rootFileGlobs := p.getRootFileWatchGlobs()
+	failedLookupGlobs, affectingLocationGlobs := p.getModuleResolutionWatchGlobs()
+
+	if rootFileGlobs != nil {
+		if updated, err := p.rootFilesWatch.update(ctx, rootFileGlobs); err != nil {
+			p.log(fmt.Sprintf("Failed to update root file watch: %v", err))
+		} else if updated {
+			p.log("Root file watches updated:\n" + formatFileList(rootFileGlobs, "\t", hr))
+		}
+	}
+
+	if updated, err := p.failedLookupsWatch.update(ctx, failedLookupGlobs); err != nil {
+		p.log(fmt.Sprintf("Failed to update failed lookup watch: %v", err))
+	} else if updated {
+		p.log("Failed lookup watches updated:\n" + formatFileList(p.failedLookupsWatch.globs, "\t", hr))
+	}
+
+	if updated, err := p.affectingLocationsWatch.update(ctx, affectingLocationGlobs); err != nil {
+		p.log(fmt.Sprintf("Failed to update affecting location watch: %v", err))
+	} else if updated {
+		p.log("Affecting location watches updated:\n" + formatFileList(p.affectingLocationsWatch.globs, "\t", hr))
+	}
+}
+
+// onWatchEventForNilScriptInfo is fired for watch events that are not the
+// project tsconfig, and do not have a ScriptInfo for the associated file.
+// This could be a case of one of the following:
+//   - A file is being created that will be added to the project.
+//   - An affecting location was changed.
+//   - A file is being created that matches a watch glob, but is not actually
+//     part of the project, e.g., a .js file in a project without --allowJs.
+func (p *Project) onWatchEventForNilScriptInfo(fileName string) {
+	path := p.toPath(fileName)
+	if p.kind == KindConfigured {
+		if p.rootFileNames.Has(path) || p.parsedCommandLine.MatchesFileName(fileName) {
+			p.pendingReload = PendingReloadFileNames
+			p.markAsDirty()
+			return
+		}
+	}
+
+	if _, ok := p.failedLookupsWatch.data[path]; ok {
+		p.markAsDirty()
+	} else if _, ok := p.affectingLocationsWatch.data[path]; ok {
+		p.markAsDirty()
+	}
 }
 
 func (p *Project) getOrCreateScriptInfoAndAttachToProject(fileName string, scriptKind core.ScriptKind) *ScriptInfo {
@@ -224,22 +376,23 @@ func (p *Project) markFileAsDirty(path tspath.Path) {
 }
 
 func (p *Project) markAsDirty() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.dirtyStateMu.Lock()
+	defer p.dirtyStateMu.Unlock()
 	if !p.dirty {
 		p.dirty = true
 		p.version++
 	}
 }
 
+// updateIfDirty returns true if the project was updated.
 func (p *Project) updateIfDirty() bool {
 	// !!! p.invalidateResolutionsOfFailedLookupLocations()
 	return p.dirty && p.updateGraph()
 }
 
 func (p *Project) onFileAddedOrRemoved(isSymlink bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.dirtyStateMu.Lock()
+	defer p.dirtyStateMu.Unlock()
 	p.hasAddedOrRemovedFiles = true
 	if isSymlink {
 		p.hasAddedOrRemovedSymlinks = true
@@ -251,17 +404,28 @@ func (p *Project) onFileAddedOrRemoved(isSymlink bool) {
 // opposite of the return value in Strada, which was frequently inverted,
 // as in `updateProjectIfDirty()`.
 func (p *Project) updateGraph() bool {
-	// !!!
+	p.programMu.Lock()
+	defer p.programMu.Unlock()
+	if !p.dirty {
+		return false
+	}
+
 	p.log("Starting updateGraph: Project: " + p.name)
 	oldProgram := p.program
 	hasAddedOrRemovedFiles := p.hasAddedOrRemovedFiles
 	p.initialLoadPending = false
 
-	if p.kind == KindConfigured && p.reloadConfig {
-		if err := p.LoadConfig(); err != nil {
-			panic(fmt.Sprintf("failed to reload config: %v", err))
+	if p.kind == KindConfigured && p.pendingReload != PendingReloadNone {
+		switch p.pendingReload {
+		case PendingReloadFileNames:
+			p.parsedCommandLine = tsoptions.ReloadFileNamesOfParsedCommandLine(p.parsedCommandLine, p.host.FS())
+			p.setRootFiles(p.parsedCommandLine.FileNames())
+		case PendingReloadFull:
+			if err := p.LoadConfig(); err != nil {
+				panic(fmt.Sprintf("failed to reload config: %v", err))
+			}
 		}
-		p.reloadConfig = false
+		p.pendingReload = PendingReloadNone
 	}
 
 	p.hasAddedOrRemovedFiles = false
@@ -283,17 +447,27 @@ func (p *Project) updateGraph() bool {
 		}
 	}
 
+	// TODO: this is currently always synchronously called by some kind of updating request,
+	// but in Strada we throttle, so at least sometimes this should be considered top-level?
+	p.updateWatchers(context.TODO())
 	return true
 }
 
 func (p *Project) updateProgram() {
 	rootFileNames := p.GetRootFileNames()
-	compilerOptions := p.GetCompilerOptions()
+	compilerOptions := p.compilerOptions
 
+	if p.checkerPool != nil {
+		p.logf("Program %d used %d checker(s)", p.version, p.checkerPool.size())
+	}
 	p.program = compiler.NewProgram(compiler.ProgramOptions{
 		RootFiles: rootFileNames,
 		Host:      p,
 		Options:   compilerOptions,
+		CreateCheckerPool: func(program *compiler.Program) compiler.CheckerPool {
+			p.checkerPool = newCheckerPool(4, program, p.log)
+			return p.checkerPool
+		},
 	})
 
 	p.program.BindSourceFiles()
@@ -324,7 +498,7 @@ func (p *Project) removeFile(info *ScriptInfo, fileExists bool, detachFromProjec
 		case KindInferred:
 			p.rootFileNames.Delete(info.path)
 		case KindConfigured:
-			p.reloadConfig = true
+			p.pendingReload = PendingReloadFileNames
 		}
 	}
 
@@ -384,6 +558,7 @@ func (p *Project) LoadConfig() error {
 			}, "    ", "  ")),
 		)
 
+		p.parsedCommandLine = parsedCommandLine
 		p.compilerOptions = parsedCommandLine.CompilerOptions()
 		p.setRootFiles(parsedCommandLine.FileNames())
 	} else {
@@ -399,16 +574,21 @@ func (p *Project) setRootFiles(rootFileNames []string) {
 	newRootScriptInfos := make(map[tspath.Path]struct{}, len(rootFileNames))
 	for _, file := range rootFileNames {
 		scriptKind := p.getScriptKind(file)
-		scriptInfo := p.host.GetOrCreateScriptInfoForFile(file, p.toPath(file), scriptKind)
-		newRootScriptInfos[scriptInfo.path] = struct{}{}
-		if _, isRoot := p.rootFileNames.Get(scriptInfo.path); !isRoot {
+		path := p.toPath(file)
+		// !!! updateNonInferredProjectFiles uses a fileExists check, which I guess
+		// could be needed if a watcher fails?
+		scriptInfo := p.host.GetOrCreateScriptInfoForFile(file, path, scriptKind)
+		newRootScriptInfos[path] = struct{}{}
+		isAlreadyRoot := p.rootFileNames.Has(path)
+
+		if !isAlreadyRoot && scriptInfo != nil {
 			p.addRoot(scriptInfo)
 			if scriptInfo.isOpen {
 				// !!!
 				// s.removeRootOfInferredProjectIfNowPartOfOtherProject(scriptInfo)
 			}
-		} else {
-			p.rootFileNames.Set(scriptInfo.path, file)
+		} else if !isAlreadyRoot {
+			p.rootFileNames.Set(path, file)
 		}
 	}
 
@@ -451,7 +631,7 @@ func (p *Project) print(writeFileNames bool, writeFileExplanation bool, writeFil
 			// if writeFileExplanation {}
 		}
 	}
-	builder.WriteString("-----------------------------------------------")
+	builder.WriteString(hr)
 	return builder.String()
 }
 
@@ -465,4 +645,20 @@ func (p *Project) logf(format string, args ...interface{}) {
 
 func (p *Project) Close() {
 	// !!!
+}
+
+func formatFileList(files []string, linePrefix string, groupSuffix string) string {
+	var builder strings.Builder
+	length := len(groupSuffix)
+	for _, file := range files {
+		length += len(file) + len(linePrefix) + 1
+	}
+	builder.Grow(length)
+	for _, file := range files {
+		builder.WriteString(linePrefix)
+		builder.WriteString(file)
+		builder.WriteRune('\n')
+	}
+	builder.WriteString(groupSuffix)
+	return builder.String()
 }

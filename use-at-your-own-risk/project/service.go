@@ -1,6 +1,8 @@
 package project
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -30,6 +32,7 @@ type assignProjectResult struct {
 type ServiceOptions struct {
 	Logger           *Logger
 	PositionEncoding lsproto.PositionEncodingKind
+	WatchEnabled     bool
 }
 
 var _ ProjectHost = (*Service)(nil)
@@ -38,6 +41,7 @@ type Service struct {
 	host                ServiceHost
 	options             ServiceOptions
 	comparePathsOptions tspath.ComparePathsOptions
+	converters          *ls.Converters
 
 	configuredProjects map[tspath.Path]*Project
 	// unrootedInferredProject is the inferred project for files opened without a projectRootDirectory
@@ -61,7 +65,7 @@ type Service struct {
 func NewService(host ServiceHost, options ServiceOptions) *Service {
 	options.Logger.Info(fmt.Sprintf("currentDirectory:: %s useCaseSensitiveFileNames:: %t", host.GetCurrentDirectory(), host.FS().UseCaseSensitiveFileNames()))
 	options.Logger.Info("libs Location:: " + host.DefaultLibraryPath())
-	return &Service{
+	service := &Service{
 		host:    host,
 		options: options,
 		comparePathsOptions: tspath.ComparePathsOptions{
@@ -82,6 +86,12 @@ func NewService(host ServiceHost, options ServiceOptions) *Service {
 		filenameToScriptInfoVersion: make(map[tspath.Path]int),
 		realpathToScriptInfos:       make(map[tspath.Path]map[*ScriptInfo]struct{}),
 	}
+
+	service.converters = ls.NewConverters(options.PositionEncoding, func(fileName string) *ls.LineMap {
+		return service.GetScriptInfo(fileName).LineMap()
+	})
+
+	return service
 }
 
 // GetCurrentDirectory implements ProjectHost.
@@ -124,6 +134,16 @@ func (s *Service) PositionEncoding() lsproto.PositionEncodingKind {
 	return s.options.PositionEncoding
 }
 
+// Client implements ProjectHost.
+func (s *Service) Client() Client {
+	return s.host.Client()
+}
+
+// IsWatchEnabled implements ProjectHost.
+func (s *Service) IsWatchEnabled() bool {
+	return s.options.WatchEnabled
+}
+
 func (s *Service) Projects() []*Project {
 	projects := make([]*Project, 0, len(s.configuredProjects)+len(s.inferredProjects))
 	for _, project := range s.configuredProjects {
@@ -159,13 +179,30 @@ func (s *Service) OpenFile(fileName string, fileContent string, scriptKind core.
 	s.printProjects()
 }
 
-func (s *Service) ChangeFile(fileName string, changes []ls.TextChange) {
+func (s *Service) ChangeFile(document lsproto.VersionedTextDocumentIdentifier, changes []lsproto.TextDocumentContentChangeEvent) error {
+	fileName := ls.DocumentURIToFileName(document.Uri)
 	path := s.toPath(fileName)
-	info := s.GetScriptInfoByPath(path)
-	if info == nil {
-		panic("scriptInfo not found")
+	scriptInfo := s.GetScriptInfoByPath(path)
+	if scriptInfo == nil {
+		return fmt.Errorf("file %s not found", fileName)
 	}
-	s.applyChangesToFile(info, changes)
+
+	textChanges := make([]ls.TextChange, len(changes))
+	for i, change := range changes {
+		if partialChange := change.TextDocumentContentChangePartial; partialChange != nil {
+			textChanges[i] = s.converters.FromLSPTextChange(scriptInfo, partialChange)
+		} else if wholeChange := change.TextDocumentContentChangeWholeDocument; wholeChange != nil {
+			textChanges[i] = ls.TextChange{
+				TextRange: core.NewTextRange(0, len(scriptInfo.Text())),
+				NewText:   wholeChange.Text,
+			}
+		} else {
+			return errors.New("invalid change type")
+		}
+	}
+
+	s.applyChangesToFile(scriptInfo, textChanges)
+	return nil
 }
 
 func (s *Service) CloseFile(fileName string) {
@@ -188,6 +225,11 @@ func (s *Service) MarkFileSaved(fileName string, text string) {
 	if info := s.GetScriptInfoByPath(s.toPath(fileName)); info != nil {
 		info.SetTextFromDisk(text)
 	}
+}
+
+func (s *Service) EnsureDefaultProjectForURI(url lsproto.DocumentUri) *Project {
+	_, project := s.EnsureDefaultProjectForFile(ls.DocumentURIToFileName(url))
+	return project
 }
 
 func (s *Service) EnsureDefaultProjectForFile(fileName string) (*ScriptInfo, *Project) {
@@ -213,6 +255,62 @@ func (s *Service) Close() {
 // SourceFileCount should only be used for testing.
 func (s *Service) SourceFileCount() int {
 	return s.documentRegistry.size()
+}
+
+func (s *Service) OnWatchedFilesChanged(ctx context.Context, changes []*lsproto.FileEvent) error {
+	for _, change := range changes {
+		fileName := ls.DocumentURIToFileName(change.Uri)
+		path := s.toPath(fileName)
+		if project, ok := s.configuredProjects[path]; ok {
+			// tsconfig of project
+			if err := s.onConfigFileChanged(project, change.Type); err != nil {
+				return fmt.Errorf("error handling config file change: %w", err)
+			}
+		} else if _, ok := s.openFiles[path]; ok {
+			// open file
+			continue
+		} else if info := s.GetScriptInfoByPath(path); info != nil {
+			// closed existing file
+			if change.Type == lsproto.FileChangeTypeDeleted {
+				s.handleDeletedFile(info, true /*deferredDelete*/)
+			} else {
+				info.deferredDelete = false
+				info.delayReloadNonMixedContentFile()
+				// !!! s.delayUpdateProjectGraphs(info.containingProjects, false /*clearSourceMapperCache*/)
+				// !!! s.handleSourceMapProjects(info)
+			}
+		} else {
+			for _, project := range s.configuredProjects {
+				project.onWatchEventForNilScriptInfo(fileName)
+			}
+		}
+	}
+
+	client := s.host.Client()
+	if client != nil {
+		return client.RefreshDiagnostics(ctx)
+	}
+
+	return nil
+}
+
+func (s *Service) onConfigFileChanged(project *Project, changeKind lsproto.FileChangeType) error {
+	wasDeferredClose := project.deferredClose
+	switch changeKind {
+	case lsproto.FileChangeTypeCreated:
+		if wasDeferredClose {
+			project.deferredClose = false
+		}
+	case lsproto.FileChangeTypeDeleted:
+		project.deferredClose = true
+	}
+
+	s.delayUpdateProjectGraph(project)
+	if !project.deferredClose {
+		project.pendingReload = PendingReloadFull
+		project.markAsDirty()
+	}
+	return nil
 }
 
 func (s *Service) ensureProjectStructureUpToDate() {
@@ -351,7 +449,7 @@ func (s *Service) getOrCreateScriptInfoWorker(fileName string, path tspath.Path,
 			}
 		}
 
-		info = NewScriptInfo(fileName, path, scriptKind)
+		info = NewScriptInfo(fileName, path, scriptKind, s.host.FS())
 		if fromDisk {
 			info.SetTextFromDisk(fileContent)
 		}
