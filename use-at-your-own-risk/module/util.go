@@ -8,7 +8,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
 
-var typeScriptVersion = semver.MustParse(core.Version)
+var typeScriptVersion = semver.MustParse(core.Version())
 
 const InferredTypesContainingFile = "__inferred type names__.ts"
 
