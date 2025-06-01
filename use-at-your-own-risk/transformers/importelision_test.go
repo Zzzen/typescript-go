@@ -7,6 +7,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/binder"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/checker"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/modulespecifiers"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/emittestutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/parsetestutil"
@@ -20,6 +21,42 @@ type fakeProgram struct {
 	getEmitModuleFormatOfFile   func(sourceFile *ast.SourceFile) core.ModuleKind
 	getImpliedNodeFormatForEmit func(sourceFile *ast.SourceFile) core.ModuleKind
 	getResolvedModule           func(currentSourceFile *ast.SourceFile, moduleReference string) *ast.SourceFile
+}
+
+func (p *fakeProgram) FileExists(path string) bool {
+	return false
+}
+
+func (p *fakeProgram) GetCurrentDirectory() string {
+	return ""
+}
+
+func (p *fakeProgram) GetGlobalTypingsCacheLocation() string {
+	return ""
+}
+
+func (p *fakeProgram) GetNearestAncestorDirectoryWithPackageJson(dirname string) string {
+	return ""
+}
+
+func (p *fakeProgram) GetPackageJsonInfo(pkgJsonPath string) modulespecifiers.PackageJsonInfo {
+	return nil
+}
+
+func (p *fakeProgram) GetProjectReferenceRedirect(path string) string {
+	return ""
+}
+
+func (p *fakeProgram) GetRedirectTargets(path tspath.Path) []string {
+	return nil
+}
+
+func (p *fakeProgram) IsSourceOfProjectReferenceRedirect(path string) bool {
+	return false
+}
+
+func (p *fakeProgram) UseCaseSensitiveFileNames() bool {
+	return true
 }
 
 func (p *fakeProgram) Options() *core.CompilerOptions {

@@ -30,6 +30,7 @@ type ServerOptions struct {
 	NewLine            core.NewLineKind
 	FS                 vfs.FS
 	DefaultLibraryPath string
+	TypingsLocation    string
 }
 
 func NewServer(opts *ServerOptions) *Server {
@@ -48,6 +49,7 @@ func NewServer(opts *ServerOptions) *Server {
 		newLine:               opts.NewLine,
 		fs:                    opts.FS,
 		defaultLibraryPath:    opts.DefaultLibraryPath,
+		typingsLocation:       opts.TypingsLocation,
 	}
 }
 
@@ -79,6 +81,7 @@ type Server struct {
 	newLine            core.NewLineKind
 	fs                 vfs.FS
 	defaultLibraryPath string
+	typingsLocation    string
 
 	initializeParams *lsproto.InitializeParams
 	positionEncoding lsproto.PositionEncodingKind
@@ -98,6 +101,11 @@ func (s *Server) FS() vfs.FS {
 // DefaultLibraryPath implements project.ServiceHost.
 func (s *Server) DefaultLibraryPath() string {
 	return s.defaultLibraryPath
+}
+
+// TypingsLocation implements project.ServiceHost.
+func (s *Server) TypingsLocation() string {
+	return s.typingsLocation
 }
 
 // GetCurrentDirectory implements project.ServiceHost.
@@ -187,16 +195,17 @@ func (s *Server) Run() error {
 	g.Go(func() error { return s.dispatchLoop(ctx) })
 	g.Go(func() error { return s.writeLoop(ctx) })
 	g.Go(func() error { return s.readLoop(ctx) })
-	return g.Wait()
+
+	if err := g.Wait(); err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
 }
 
 func (s *Server) readLoop(ctx context.Context) error {
 	for {
 		msg, err := s.read()
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
 			if errors.Is(err, lsproto.ErrInvalidRequest) {
 				s.sendError(nil, err)
 				continue
@@ -476,6 +485,10 @@ func (s *Server) handleInitialized(ctx context.Context, req *lsproto.RequestMess
 		Logger:           s.logger,
 		WatchEnabled:     s.watchEnabled,
 		PositionEncoding: s.positionEncoding,
+		TypingsInstallerOptions: project.TypingsInstallerOptions{
+			ThrottleLimit: 5,
+			NpmInstall:    project.NpmInstall,
+		},
 	})
 
 	return nil
