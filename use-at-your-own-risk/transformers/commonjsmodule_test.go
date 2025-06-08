@@ -9,13 +9,10 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/emittestutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/parsetestutil"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
 
-type fakeSourceFileMetaDataProvider struct{}
-
-func (p *fakeSourceFileMetaDataProvider) GetSourceFileMetaData(path tspath.Path) *ast.SourceFileMetaData {
-	return nil
+func fakeGetEmitModuleFormatOfFile(file ast.HasFileName) core.ModuleKind {
+	return core.ModuleKindNone
 }
 
 func TestCommonJSModuleTransformer(t *testing.T) {
@@ -1035,10 +1032,9 @@ exports.a = a;`,
 
 			emitContext := printer.NewEmitContext()
 			resolver := binder.NewReferenceResolver(&compilerOptions, binder.ReferenceResolverHooks{})
-			program := &fakeSourceFileMetaDataProvider{}
 
 			file = NewRuntimeSyntaxTransformer(emitContext, &compilerOptions, resolver).TransformSourceFile(file)
-			file = NewCommonJSModuleTransformer(emitContext, &compilerOptions, resolver, program).TransformSourceFile(file)
+			file = NewCommonJSModuleTransformer(emitContext, &compilerOptions, resolver, fakeGetEmitModuleFormatOfFile).TransformSourceFile(file)
 			emittestutil.CheckEmit(t, emitContext, file, rec.output)
 		})
 	}

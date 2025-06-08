@@ -1,0 +1,85 @@
+package fourslash_test
+
+import (
+	"testing"
+
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
+)
+
+func TestCompletionListInstanceProtectedMembers2(t *testing.T) {
+	t.Parallel()
+
+	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
+	const content = `class Base {
+    private privateMethod() { }
+    private privateProperty;
+
+    protected protectedMethod() { }
+    protected protectedProperty;
+
+    public publicMethod() { }
+    public publicProperty;
+
+    protected protectedOverriddenMethod() { }
+    protected protectedOverriddenProperty;
+}
+
+class C1 extends Base {
+    protected  protectedOverriddenMethod() { }
+    protected  protectedOverriddenProperty;
+
+    test() {
+        this./*1*/;
+        super./*2*/;
+
+        var b: Base;
+        var c: C1;
+
+        b./*3*/;
+        c./*4*/;
+    }
+}`
+	f := fourslash.NewFourslash(t, nil /*capabilities*/, content)
+	f.VerifyCompletions(t, "1", &fourslash.VerifyCompletionsExpectedList{
+		IsIncomplete: false,
+		ItemDefaults: &lsproto.CompletionItemDefaults{
+			CommitCharacters: &defaultCommitCharacters,
+		},
+		Items: &fourslash.VerifyCompletionsExpectedItems{
+			Includes: []fourslash.ExpectedCompletionItem{"protectedMethod", "protectedProperty", "publicMethod", "publicProperty", "protectedOverriddenMethod", "protectedOverriddenProperty"},
+			Excludes: []string{"privateMethod", "privateProperty"},
+		},
+	})
+	f.VerifyCompletions(t, "2", &fourslash.VerifyCompletionsExpectedList{
+		IsIncomplete: false,
+		ItemDefaults: &lsproto.CompletionItemDefaults{
+			CommitCharacters: &defaultCommitCharacters,
+		},
+		Items: &fourslash.VerifyCompletionsExpectedItems{
+			Includes: []fourslash.ExpectedCompletionItem{"protectedMethod", "publicMethod", "protectedOverriddenMethod"},
+			Excludes: []string{"privateMethod", "privateProperty", "protectedProperty", "publicProperty", "protectedOverriddenProperty"},
+		},
+	})
+	f.VerifyCompletions(t, "3", &fourslash.VerifyCompletionsExpectedList{
+		IsIncomplete: false,
+		ItemDefaults: &lsproto.CompletionItemDefaults{
+			CommitCharacters: &defaultCommitCharacters,
+		},
+		Items: &fourslash.VerifyCompletionsExpectedItems{
+			Includes: []fourslash.ExpectedCompletionItem{"publicMethod", "publicProperty"},
+			Excludes: []string{"privateMethod", "privateProperty", "protectedMethod", "protectedProperty", "protectedOverriddenMethod", "protectedOverriddenProperty"},
+		},
+	})
+	f.VerifyCompletions(t, "4", &fourslash.VerifyCompletionsExpectedList{
+		IsIncomplete: false,
+		ItemDefaults: &lsproto.CompletionItemDefaults{
+			CommitCharacters: &defaultCommitCharacters,
+		},
+		Items: &fourslash.VerifyCompletionsExpectedItems{
+			Includes: []fourslash.ExpectedCompletionItem{"protectedMethod", "protectedProperty", "publicMethod", "publicProperty", "protectedOverriddenMethod", "protectedOverriddenProperty"},
+			Excludes: []string{"privateMethod", "privateProperty"},
+		},
+	})
+}

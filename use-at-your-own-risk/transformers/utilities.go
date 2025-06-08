@@ -6,6 +6,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/jsnum"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/outputpaths"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
@@ -119,6 +120,8 @@ func isIdentifierReference(name *ast.IdentifierNode, parent *ast.Node) bool {
 		return parent.AsImportAttribute().Value == name
 	case ast.KindJsxOpeningElement:
 		return parent.AsJsxOpeningElement().TagName == name
+	case ast.KindJsxClosingElement:
+		return parent.AsJsxClosingElement().TagName == name
 	default:
 		return false
 	}
@@ -335,7 +338,7 @@ func rewriteModuleSpecifier(emitContext *printer.EmitContext, node *ast.Expressi
 	if node == nil || !ast.IsStringLiteral(node) || !shouldRewriteModuleSpecifier(node.Text(), compilerOptions) {
 		return node
 	}
-	updatedText := tspath.ChangeExtension(node.Text(), core.GetOutputExtension(node.Text(), compilerOptions.Jsx))
+	updatedText := tspath.ChangeExtension(node.Text(), outputpaths.GetOutputExtension(node.Text(), compilerOptions.Jsx))
 	if updatedText != node.Text() {
 		updated := emitContext.Factory.NewStringLiteral(updatedText)
 		// !!! set quote style

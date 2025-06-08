@@ -457,6 +457,7 @@ func (p *Parser) parseTag(tags []*ast.Node, margin int) *ast.Node {
 		tag = p.parseSeeTag(start, tagName, margin, indentText)
 	case "import":
 		tag = p.parseImportTag(start, tagName, margin, indentText)
+		ast.SetParentInChildren(tag)
 	default:
 		tag = p.parseUnknownTag(start, tagName, margin, indentText)
 	}
@@ -883,6 +884,7 @@ func (p *Parser) parseExpressionWithTypeArgumentsForAugments() *ast.Node {
 	res := node
 	p.finishNode(node, pos)
 	if usedBrace {
+		p.skipWhitespace()
 		p.parseExpected(ast.KindCloseBraceToken)
 	}
 	return res

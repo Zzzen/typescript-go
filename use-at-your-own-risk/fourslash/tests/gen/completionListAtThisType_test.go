@@ -1,0 +1,37 @@
+package fourslash_test
+
+import (
+	"testing"
+
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
+)
+
+func TestCompletionListAtThisType(t *testing.T) {
+	t.Parallel()
+	t.Skip()
+	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
+	const content = `class Test {
+    foo() {}
+
+    bar() {
+        this.baz(this, "/*1*/");
+
+        const t = new Test()
+        this.baz(t, "/*2*/");
+    }
+
+    baz<T>(a: T, k: keyof T) {}
+}`
+	f := fourslash.NewFourslash(t, nil /*capabilities*/, content)
+	f.VerifyCompletions(t, []string{"1", "2"}, &fourslash.VerifyCompletionsExpectedList{
+		IsIncomplete: false,
+		ItemDefaults: &lsproto.CompletionItemDefaults{
+			CommitCharacters: &defaultCommitCharacters,
+		},
+		Items: &fourslash.VerifyCompletionsExpectedItems{
+			Exact: []fourslash.ExpectedCompletionItem{"bar", "baz", "foo"},
+		},
+	})
+}
