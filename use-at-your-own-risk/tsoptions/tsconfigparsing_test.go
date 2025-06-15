@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnosticwriter"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/parser"
@@ -863,7 +864,7 @@ func TestParseSrcCompiler(t *testing.T) {
 		SourceMap:                  core.TSTrue,
 		UseUnknownInCatchVariables: core.TSFalse,
 		Pretty:                     core.TSTrue,
-	})
+	}, cmpopts.IgnoreUnexported(core.CompilerOptions{}))
 
 	fileNames := parseConfigFileContent.ParsedConfig.FileNames
 	relativePaths := make([]string, 0, len(fileNames))

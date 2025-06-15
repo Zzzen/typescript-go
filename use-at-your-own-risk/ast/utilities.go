@@ -656,6 +656,7 @@ func isDeclarationStatementKind(kind Kind) bool {
 		KindExportDeclaration,
 		KindExportAssignment,
 		KindJSExportAssignment,
+		KindCommonJSExport,
 		KindNamespaceExportDeclaration:
 		return true
 	}
@@ -861,6 +862,17 @@ func WalkUpParenthesizedTypes(node *TypeNode) *Node {
 		node = node.Parent
 	}
 	return node
+}
+
+func GetEffectiveTypeParent(parent *Node) *Node {
+	if parent != nil && IsInJSFile(parent) {
+		if parent.Kind == KindJSDocTypeExpression && parent.AsJSDocTypeExpression().Host != nil {
+			parent = parent.AsJSDocTypeExpression().Host
+		} else if parent.Kind == KindJSDocTemplateTag && parent.AsJSDocTemplateTag().Host != nil {
+			parent = parent.AsJSDocTemplateTag().Host
+		}
+	}
+	return parent
 }
 
 // Walks up the parents of a node to find the containing SourceFile
@@ -1483,17 +1495,18 @@ func GetAssignmentDeclarationKind(bin *BinaryExpression) JSDeclarationKind {
 	if bin.OperatorToken.Kind != KindEqualsToken || !IsAccessExpression(bin.Left) {
 		return JSDeclarationKindNone
 	}
-	if IsModuleExportsAccessExpression(bin.Left) {
+	if IsInJSFile(bin.Left) && IsModuleExportsAccessExpression(bin.Left) {
 		return JSDeclarationKindModuleExports
-	} else if (IsModuleExportsAccessExpression(bin.Left.Expression()) || IsExportsIdentifier(bin.Left.Expression())) &&
+	} else if IsInJSFile(bin.Left) &&
+		(IsModuleExportsAccessExpression(bin.Left.Expression()) || IsExportsIdentifier(bin.Left.Expression())) &&
 		GetElementOrPropertyAccessName(bin.Left) != nil {
 		return JSDeclarationKindExportsProperty
 	}
-	if bin.Left.Expression().Kind == KindThisKeyword {
+	if IsInJSFile(bin.Left) && bin.Left.Expression().Kind == KindThisKeyword {
 		return JSDeclarationKindThisProperty
 	}
-	if bin.Left.Kind == KindPropertyAccessExpression && IsIdentifier(bin.Left.Expression()) && IsIdentifier(bin.Left.Name()) ||
-		bin.Left.Kind == KindElementAccessExpression && IsIdentifier(bin.Left.Expression()) {
+	if bin.Left.Kind == KindPropertyAccessExpression && IsEntityNameExpressionEx(bin.Left.Expression(), IsInJSFile(bin.Left)) && IsIdentifier(bin.Left.Name()) ||
+		bin.Left.Kind == KindElementAccessExpression && IsEntityNameExpressionEx(bin.Left.Expression(), IsInJSFile(bin.Left)) {
 		return JSDeclarationKindProperty
 	}
 	return JSDeclarationKindNone
@@ -1526,13 +1539,33 @@ func IsDynamicName(name *Node) bool {
 }
 
 func IsEntityNameExpression(node *Node) bool {
-	return node.Kind == KindIdentifier || IsPropertyAccessEntityNameExpression(node)
+	return IsEntityNameExpressionEx(node, false /*allowJS*/)
 }
 
-func IsPropertyAccessEntityNameExpression(node *Node) bool {
+func IsEntityNameExpressionEx(node *Node, allowJS bool) bool {
+	if node.Kind == KindIdentifier || IsPropertyAccessEntityNameExpression(node, allowJS) {
+		return true
+	}
+	if allowJS {
+		return node.Kind == KindThisKeyword || isElementAccessEntityNameExpression(node, allowJS)
+	}
+	return false
+}
+
+func IsPropertyAccessEntityNameExpression(node *Node, allowJS bool) bool {
 	if node.Kind == KindPropertyAccessExpression {
 		expr := node.AsPropertyAccessExpression()
-		return expr.Name().Kind == KindIdentifier && IsEntityNameExpression(expr.Expression)
+		return expr.Name().Kind == KindIdentifier && IsEntityNameExpressionEx(expr.Expression, allowJS)
+	}
+	return false
+}
+
+func isElementAccessEntityNameExpression(node *Node, allowJS bool) bool {
+	if node.Kind == KindElementAccessExpression {
+		expr := node.AsElementAccessExpression()
+		if IsStringOrNumericLiteralLike(SkipParentheses(expr.ArgumentExpression)) {
+			return IsEntityNameExpressionEx(expr.Expression, allowJS)
+		}
 	}
 	return false
 }
@@ -1543,6 +1576,16 @@ func IsDottedName(node *Node) bool {
 		return true
 	case KindPropertyAccessExpression, KindParenthesizedExpression:
 		return IsDottedName(node.Expression())
+	}
+	return false
+}
+
+func HasSamePropertyAccessName(node1, node2 *Node) bool {
+	if node1.Kind == KindIdentifier && node2.Kind == KindIdentifier {
+		return node1.Text() == node2.Text()
+	} else if node1.Kind == KindPropertyAccessExpression && node2.Kind == KindPropertyAccessExpression {
+		return node1.AsPropertyAccessExpression().Name().Text() == node2.AsPropertyAccessExpression().Name().Text() &&
+			HasSamePropertyAccessName(node1.AsPropertyAccessExpression().Expression, node2.AsPropertyAccessExpression().Expression)
 	}
 	return false
 }
@@ -2504,16 +2547,15 @@ func GetImpliedNodeFormatForFile(path string, packageJsonType string) core.Modul
 }
 
 func GetEmitModuleFormatOfFileWorker(fileName string, options *core.CompilerOptions, sourceFileMetaData *SourceFileMetaData) core.ModuleKind {
-	result := GetImpliedNodeFormatForEmitWorker(fileName, options, sourceFileMetaData)
+	result := GetImpliedNodeFormatForEmitWorker(fileName, options.GetEmitModuleKind(), sourceFileMetaData)
 	if result != core.ModuleKindNone {
 		return result
 	}
 	return options.GetEmitModuleKind()
 }
 
-func GetImpliedNodeFormatForEmitWorker(fileName string, options *core.CompilerOptions, sourceFileMetaData *SourceFileMetaData) core.ResolutionMode {
-	moduleKind := options.GetEmitModuleKind()
-	if core.ModuleKindNode16 <= moduleKind && moduleKind <= core.ModuleKindNodeNext {
+func GetImpliedNodeFormatForEmitWorker(fileName string, emitModuleKind core.ModuleKind, sourceFileMetaData *SourceFileMetaData) core.ResolutionMode {
+	if core.ModuleKindNode16 <= emitModuleKind && emitModuleKind <= core.ModuleKindNodeNext {
 		if sourceFileMetaData == nil {
 			return core.ModuleKindNone
 		}
@@ -3403,6 +3445,7 @@ func ReplaceModifiers(factory *NodeFactory, node *Node, modifierArray *ModifierL
 		return factory.UpdateExportAssignment(
 			node.AsExportAssignment(),
 			modifierArray,
+			node.Type(),
 			node.Expression(),
 		)
 	case KindExportDeclaration:
@@ -3568,4 +3611,37 @@ func IsTrivia(token Kind) bool {
 
 func HasDecorators(node *Node) bool {
 	return HasSyntacticModifier(node, ModifierFlagsDecorator)
+}
+
+type hasFileNameImpl struct {
+	fileName string
+	path     tspath.Path
+}
+
+func NewHasFileName(fileName string, path tspath.Path) HasFileName {
+	return &hasFileNameImpl{
+		fileName: fileName,
+		path:     path,
+	}
+}
+
+func (h *hasFileNameImpl) FileName() string {
+	return h.fileName
+}
+
+func (h *hasFileNameImpl) Path() tspath.Path {
+	return h.path
+}
+
+func GetSemanticJsxChildren(children []*JsxChild) []*JsxChild {
+	return core.Filter(children, func(i *JsxChild) bool {
+		switch i.Kind {
+		case KindJsxExpression:
+			return i.Expression() != nil
+		case KindJsxText:
+			return !i.AsJsxText().ContainsOnlyTriviaWhiteSpaces
+		default:
+			return true
+		}
+	})
 }

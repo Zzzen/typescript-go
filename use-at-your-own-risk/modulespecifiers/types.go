@@ -5,6 +5,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/module"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
 
@@ -52,8 +53,7 @@ type ModuleSpecifierGenerationHost interface {
 	UseCaseSensitiveFileNames() bool
 	GetCurrentDirectory() string
 
-	IsSourceOfProjectReferenceRedirect(path string) bool
-	GetProjectReferenceRedirect(path string) string
+	GetOutputAndProjectReference(path tspath.Path) *tsoptions.OutputDtsAndProjectReference
 	GetRedirectTargets(path tspath.Path) []string
 
 	FileExists(path string) bool

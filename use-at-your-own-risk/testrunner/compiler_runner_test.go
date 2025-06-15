@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/bundled"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/repo"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 	"gotest.tools/v3/assert"
@@ -35,7 +35,7 @@ func runCompilerTests(t *testing.T, isSubmodule bool) {
 		NewCompilerBaselineRunner(TestTypeConformance, isSubmodule),
 	}
 
-	var seenTests core.Set[string]
+	var seenTests collections.Set[string]
 	for _, runner := range runners {
 		for _, test := range runner.EnumerateTestFiles() {
 			test = tspath.GetBaseFileName(test)

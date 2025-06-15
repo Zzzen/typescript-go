@@ -2,9 +2,11 @@ package ls
 
 import (
 	"context"
+	"strings"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnosticwriter"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 )
 
@@ -88,11 +90,20 @@ func toLSPDiagnostic(converters *Converters, diagnostic *ast.Diagnostic) *lsprot
 			Integer: ptrTo(diagnostic.Code()),
 		},
 		Severity:           &severity,
-		Message:            diagnostic.Message(),
+		Message:            messageChainToString(diagnostic),
 		Source:             ptrTo("ts"),
 		RelatedInformation: ptrToSliceIfNonEmpty(relatedInformation),
 		Tags:               ptrToSliceIfNonEmpty(tags),
 	}
+}
+
+func messageChainToString(diagnostic *ast.Diagnostic) string {
+	if len(diagnostic.MessageChain()) == 0 {
+		return diagnostic.Message()
+	}
+	var b strings.Builder
+	diagnosticwriter.WriteFlattenedDiagnosticMessage(&b, diagnostic, "\n")
+	return b.String()
 }
 
 func ptrToSliceIfNonEmpty[T any](s []T) *[]T {

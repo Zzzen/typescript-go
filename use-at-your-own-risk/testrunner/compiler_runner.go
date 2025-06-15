@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/checker"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/repo"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
@@ -323,7 +324,7 @@ func newCompilerTest(
 	}
 }
 
-var concurrentSkippedErrorBaselines = core.NewSetFromItems(
+var concurrentSkippedErrorBaselines = collections.NewSetFromItems(
 	"circular1.ts",
 	"circular3.ts",
 	"recursiveExportAssignmentAndFindAliasedType1.ts",

@@ -3,6 +3,8 @@ package printer
 import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
 
 type WriteFileData struct {
@@ -24,4 +26,5 @@ type EmitHost interface {
 	WriteFile(fileName string, text string, writeByteOrderMark bool, relatedSourceFiles []*ast.SourceFile, data *WriteFileData) error
 	GetEmitModuleFormatOfFile(file ast.HasFileName) core.ModuleKind
 	GetEmitResolver(file *ast.SourceFile, skipDiagnostics bool) EmitResolver
+	GetOutputAndProjectReference(path tspath.Path) *tsoptions.OutputDtsAndProjectReference
 }
