@@ -9,18 +9,27 @@ import (
 )
 
 type parseTask struct {
-	normalizedFilePath string
-	path               tspath.Path
-	file               *ast.SourceFile
-	isLib              bool
-	isRedirected       bool
-	subTasks           []*parseTask
+	normalizedFilePath          string
+	path                        tspath.Path
+	file                        *ast.SourceFile
+	isLib                       bool
+	isRedirected                bool
+	subTasks                    []*parseTask
+	loaded                      bool
+	isForAutomaticTypeDirective bool
+	root                        bool
 
-	metadata                     *ast.SourceFileMetaData
+	metadata                     ast.SourceFileMetaData
 	resolutionsInFile            module.ModeAwareCache[*module.ResolvedModule]
 	typeResolutionsInFile        module.ModeAwareCache[*module.ResolvedTypeReferenceDirective]
 	importHelpersImportSpecifier *ast.Node
 	jsxRuntimeImportSpecifier    *jsxRuntimeImportSpecifier
+	increaseDepth                bool
+	elideOnDepth                 bool
+
+	// Track if this file is from an external library (node_modules)
+	// This mirrors the TypeScript currentNodeModulesDepth > 0 check
+	fromExternalLibrary bool
 }
 
 func (t *parseTask) FileName() string {
@@ -31,8 +40,13 @@ func (t *parseTask) Path() tspath.Path {
 	return t.path
 }
 
-func (t *parseTask) start(loader *fileLoader) {
+func (t *parseTask) load(loader *fileLoader) {
+	t.loaded = true
 	t.path = loader.toPath(t.normalizedFilePath)
+	if t.isForAutomaticTypeDirective {
+		t.loadAutomaticTypeDirectives(loader)
+		return
+	}
 	redirect := loader.projectReferenceFileMapper.getParseFileRedirect(t)
 	if redirect != "" {
 		t.redirect(loader, redirect)
@@ -51,8 +65,6 @@ func (t *parseTask) start(loader *fileLoader) {
 	}
 
 	t.file = file
-
-	// !!! if noResolve, skip all of this
 	t.subTasks = make([]*parseTask, 0, len(file.ReferencedFiles)+len(file.Imports())+len(file.ModuleAugmentations))
 
 	for _, ref := range file.ReferencedFiles {
@@ -61,11 +73,7 @@ func (t *parseTask) start(loader *fileLoader) {
 	}
 
 	compilerOptions := loader.opts.Config.CompilerOptions()
-	toParseTypeRefs, typeResolutionsInFile := loader.resolveTypeReferenceDirectives(file, t.metadata)
-	t.typeResolutionsInFile = typeResolutionsInFile
-	for _, typeResolution := range toParseTypeRefs {
-		t.addSubTask(typeResolution, false)
-	}
+	loader.resolveTypeReferenceDirectives(t)
 
 	if compilerOptions.NoLib != core.TSTrue {
 		for _, lib := range file.LibReferenceDirectives {
@@ -73,30 +81,70 @@ func (t *parseTask) start(loader *fileLoader) {
 			if !ok {
 				continue
 			}
-			t.addSubTask(tspath.CombinePaths(loader.defaultLibraryPath, name), true)
+			t.addSubTask(resolvedRef{fileName: tspath.CombinePaths(loader.defaultLibraryPath, name)}, true)
 		}
 	}
 
-	toParse, resolutionsInFile, importHelpersImportSpecifier, jsxRuntimeImportSpecifier := loader.resolveImportsAndModuleAugmentations(file, t.metadata)
-	for _, imp := range toParse {
-		t.addSubTask(imp, false)
-	}
-
-	t.resolutionsInFile = resolutionsInFile
-	t.importHelpersImportSpecifier = importHelpersImportSpecifier
-	t.jsxRuntimeImportSpecifier = jsxRuntimeImportSpecifier
+	loader.resolveImportsAndModuleAugmentations(t)
 }
 
 func (t *parseTask) redirect(loader *fileLoader, fileName string) {
 	t.isRedirected = true
-	t.subTasks = []*parseTask{{normalizedFilePath: tspath.NormalizePath(fileName), isLib: t.isLib}}
+	// increaseDepth and elideOnDepth are not copied to redirects, otherwise their depth would be double counted.
+	t.subTasks = []*parseTask{{normalizedFilePath: tspath.NormalizePath(fileName), isLib: t.isLib, fromExternalLibrary: t.fromExternalLibrary}}
 }
 
-func (t *parseTask) addSubTask(fileName string, isLib bool) {
-	normalizedFilePath := tspath.NormalizePath(fileName)
-	t.subTasks = append(t.subTasks, &parseTask{normalizedFilePath: normalizedFilePath, isLib: isLib})
+func (t *parseTask) loadAutomaticTypeDirectives(loader *fileLoader) {
+	toParseTypeRefs, typeResolutionsInFile := loader.resolveAutomaticTypeDirectives(t.normalizedFilePath)
+	t.typeResolutionsInFile = typeResolutionsInFile
+	for _, typeResolution := range toParseTypeRefs {
+		t.addSubTask(typeResolution, false)
+	}
 }
 
-func getSubTasksOfParseTask(t *parseTask) []*parseTask {
+type resolvedRef struct {
+	fileName              string
+	increaseDepth         bool
+	elideOnDepth          bool
+	isFromExternalLibrary bool
+}
+
+func (t *parseTask) addSubTask(ref resolvedRef, isLib bool) {
+	normalizedFilePath := tspath.NormalizePath(ref.fileName)
+	subTask := &parseTask{
+		normalizedFilePath:  normalizedFilePath,
+		isLib:               isLib,
+		increaseDepth:       ref.increaseDepth,
+		elideOnDepth:        ref.elideOnDepth,
+		fromExternalLibrary: ref.isFromExternalLibrary,
+	}
+	t.subTasks = append(t.subTasks, subTask)
+}
+
+func (t *parseTask) getSubTasks() []*parseTask {
 	return t.subTasks
+}
+
+func (t *parseTask) shouldIncreaseDepth() bool {
+	return t.increaseDepth
+}
+
+func (t *parseTask) shouldElideOnDepth() bool {
+	return t.elideOnDepth
+}
+
+func (t *parseTask) isLoaded() bool {
+	return t.loaded
+}
+
+func (t *parseTask) isRoot() bool {
+	return t.root
+}
+
+func (t *parseTask) isFromExternalLibrary() bool {
+	return t.fromExternalLibrary
+}
+
+func (t *parseTask) markFromExternalLibrary() {
+	t.fromExternalLibrary = true
 }

@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	json2 "github.com/go-json-experiment/json"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/parser"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/repo"
@@ -48,7 +50,10 @@ func BenchmarkPackageJSON(b *testing.B) {
 			b.Run(f.Name(), func(b *testing.B) {
 				fileName := "/" + f.Name()
 				for b.Loop() {
-					parser.ParseJSONText(fileName, tspath.Path(fileName), string(content))
+					parser.ParseSourceFile(ast.SourceFileParseOptions{
+						FileName: fileName,
+						Path:     tspath.Path(fileName),
+					}, string(content), core.ScriptKindJSON)
 				}
 			})
 		})

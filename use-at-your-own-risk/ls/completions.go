@@ -1425,7 +1425,7 @@ func getCompletionData(program *compiler.Program, typeChecker *checker.Checker, 
 
 	// exclude literal suggestions after <input type="text" [||] /> microsoft/TypeScript#51667) and after closing quote (microsoft/TypeScript#52675)
 	// for strings getStringLiteralCompletions handles completions
-	isLiteralExpected := !ast.IsStringLiteralLike(previousToken) && !isJsxIdentifierExpected
+	isLiteralExpected := !(previousToken != nil && ast.IsStringLiteralLike(previousToken)) && !isJsxIdentifierExpected
 	var literals []literalValue
 	if isLiteralExpected {
 		var types []*checker.Type
@@ -1513,7 +1513,7 @@ func (l *LanguageService) completionInfoFromData(
 	defer done()
 
 	// Verify if the file is JSX language variant
-	if ast.GetLanguageVariant(file.ScriptKind) == core.LanguageVariantJSX {
+	if file.LanguageVariant == core.LanguageVariantJSX {
 		list := l.getJsxClosingTagCompletion(data.location, file, position, clientOptions)
 		if list != nil {
 			return list
@@ -1555,7 +1555,6 @@ func (l *LanguageService) completionInfoFromData(
 		position,
 		file,
 		program,
-		compilerOptions.GetEmitScriptTarget(),
 		preferences,
 		compilerOptions,
 		clientOptions,
@@ -1593,7 +1592,6 @@ func (l *LanguageService) completionInfoFromData(
 			file,
 			position,
 			&uniqueNames,
-			compilerOptions.GetEmitScriptTarget(),
 			sortedEntries,
 		)
 	}
@@ -1617,7 +1615,6 @@ func (l *LanguageService) getCompletionEntriesFromSymbols(
 	position int,
 	file *ast.SourceFile,
 	program *compiler.Program,
-	target core.ScriptTarget,
 	preferences *UserPreferences,
 	compilerOptions *core.CompilerOptions,
 	clientOptions *lsproto.CompletionClientCapabilities,
@@ -1637,7 +1634,6 @@ func (l *LanguageService) getCompletionEntriesFromSymbols(
 		origin := data.symbolToOriginInfoMap[symbolId]
 		name, needsConvertPropertyAccess := getCompletionEntryDisplayNameForSymbol(
 			symbol,
-			target,
 			origin,
 			data.completionKind,
 			data.isJsxIdentifierExpected,
@@ -1951,8 +1947,7 @@ func (l *LanguageService) createCompletionItem(
 
 	parentNamedImportOrExport := ast.FindAncestor(data.location, isNamedImportsOrExports)
 	if parentNamedImportOrExport != nil {
-		languageVersion := compilerOptions.GetEmitScriptTarget()
-		if !scanner.IsIdentifierText(name, languageVersion, core.LanguageVariantStandard) {
+		if !scanner.IsIdentifierText(name, core.LanguageVariantStandard) {
 			insertText = quotePropertyName(file, preferences, name)
 
 			if parentNamedImportOrExport.Kind == ast.KindNamedImports {
@@ -1962,7 +1957,7 @@ func (l *LanguageService) createCompletionItem(
 				scanner.SetText(file.Text())
 				scanner.ResetPos(position)
 				if !(scanner.Scan() == ast.KindAsKeyword && scanner.Scan() == ast.KindIdentifier) {
-					insertText += " as " + generateIdentifierForArbitraryString(name, languageVersion)
+					insertText += " as " + generateIdentifierForArbitraryString(name)
 				}
 			}
 		} else if parentNamedImportOrExport.Kind == ast.KindNamedImports {
@@ -2273,7 +2268,6 @@ func shouldIncludeSymbol(
 
 func getCompletionEntryDisplayNameForSymbol(
 	symbol *ast.Symbol,
-	target core.ScriptTarget,
 	origin *symbolOriginInfo,
 	completionKind CompletionKind,
 	isJsxIdentifierExpected bool,
@@ -2299,7 +2293,7 @@ func getCompletionEntryDisplayNameForSymbol(
 
 	variant := core.IfElse(isJsxIdentifierExpected, core.LanguageVariantJSX, core.LanguageVariantStandard)
 	// name is a valid identifier or private identifier text
-	if scanner.IsIdentifierText(name, target, variant) ||
+	if scanner.IsIdentifierText(name, variant) ||
 		symbol.ValueDeclaration != nil && ast.IsPrivateIdentifierClassElementDeclaration(symbol.ValueDeclaration) {
 		return name, false
 	}
@@ -2607,11 +2601,9 @@ func getContextualType(previousToken *ast.Node, position int, file *ast.SourceFi
 		}
 		return nil
 	default:
-		// argInfo := getArgumentInfoForCompletions(previousToken, position, file, typeChecker) // !!! signature help
-		var argInfo *struct{} // !!! signature help
+		argInfo := getArgumentInfoForCompletions(previousToken, position, file, typeChecker)
 		if argInfo != nil {
-			// !!! signature help
-			return nil
+			return typeChecker.GetContextualTypeForArgumentAtIndex(argInfo.invocation, argInfo.argumentIndex)
 		} else if isEqualityOperatorKind(previousToken.Kind) && ast.IsBinaryExpression(parent) && isEqualityOperatorKind(parent.AsBinaryExpression().OperatorToken.Kind) {
 			// completion at `x ===/**/`
 			return typeChecker.GetTypeAtLocation(parent.AsBinaryExpression().Left)
@@ -2819,7 +2811,7 @@ func isNamedImportsOrExports(node *ast.Node) bool {
 	return ast.IsNamedImports(node) || ast.IsNamedExports(node)
 }
 
-func generateIdentifierForArbitraryString(text string, languageVersion core.ScriptTarget) string {
+func generateIdentifierForArbitraryString(text string) string {
 	needsUnderscore := false
 	identifier := ""
 	var ch rune
@@ -2830,9 +2822,9 @@ func generateIdentifierForArbitraryString(text string, languageVersion core.Scri
 		ch, size = utf8.DecodeRuneInString(text[pos:])
 		var validChar bool
 		if pos == 0 {
-			validChar = scanner.IsIdentifierStart(ch, languageVersion)
+			validChar = scanner.IsIdentifierStart(ch)
 		} else {
-			validChar = scanner.IsIdentifierPart(ch, languageVersion)
+			validChar = scanner.IsIdentifierPart(ch)
 		}
 		if size > 0 && validChar {
 			if needsUnderscore {
@@ -3121,7 +3113,6 @@ func getJSCompletionEntries(
 	file *ast.SourceFile,
 	position int,
 	uniqueNames *collections.Set[string],
-	target core.ScriptTarget,
 	sortedEntries []*lsproto.CompletionItem,
 ) []*lsproto.CompletionItem {
 	nameTable := getNameTable(file)
@@ -3130,7 +3121,7 @@ func getJSCompletionEntries(
 		if pos == position {
 			continue
 		}
-		if !uniqueNames.Has(name) && scanner.IsIdentifierText(name, target, core.LanguageVariantStandard) {
+		if !uniqueNames.Has(name) && scanner.IsIdentifierText(name, core.LanguageVariantStandard) {
 			uniqueNames.Add(name)
 			sortedEntries = core.InsertSorted(
 				sortedEntries,
@@ -4233,7 +4224,7 @@ func isInStringOrRegularExpressionOrTemplateLiteral(contextToken *ast.Node, posi
 	return (ast.IsRegularExpressionLiteral(contextToken) || ast.IsStringTextContainingNode(contextToken)) &&
 		(contextToken.Loc.ContainsExclusive(position)) ||
 		position == contextToken.End() &&
-			(ast.IsUnterminatedNode(contextToken) || ast.IsRegularExpressionLiteral(contextToken))
+			(ast.IsUnterminatedLiteral(contextToken) || ast.IsRegularExpressionLiteral(contextToken))
 }
 
 // true if we are certain that the currently edited location must define a new location; false otherwise.
@@ -4460,4 +4451,22 @@ func clientSupportsDefaultCommitCharacters(clientOptions *lsproto.CompletionClie
 		return false
 	}
 	return slices.Contains(*clientOptions.CompletionList.ItemDefaults, "commitCharacters")
+}
+
+type argumentInfoForCompletions struct {
+	invocation    *ast.CallLikeExpression
+	argumentIndex int
+	argumentCount int
+}
+
+func getArgumentInfoForCompletions(node *ast.Node, position int, file *ast.SourceFile, typeChecker *checker.Checker) *argumentInfoForCompletions {
+	info := getImmediatelyContainingArgumentInfo(node, position, file, typeChecker)
+	if info == nil || info.isTypeParameterList || info.invocation.callInvocation == nil {
+		return nil
+	}
+	return &argumentInfoForCompletions{
+		invocation:    info.invocation.callInvocation.node,
+		argumentIndex: *info.argumentIndex,
+		argumentCount: info.argumentCount,
+	}
 }

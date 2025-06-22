@@ -6,6 +6,7 @@ import (
 )
 
 type projectReferenceParseTask struct {
+	loaded     bool
 	configName string
 	resolved   *tsoptions.ParsedCommandLine
 	subTasks   []*projectReferenceParseTask
@@ -15,7 +16,9 @@ func (t *projectReferenceParseTask) FileName() string {
 	return t.configName
 }
 
-func (t *projectReferenceParseTask) start(loader *fileLoader) {
+func (t *projectReferenceParseTask) load(loader *fileLoader) {
+	t.loaded = true
+
 	t.resolved = loader.opts.Host.GetResolvedProjectReference(t.configName, loader.toPath(t.configName))
 	if t.resolved == nil {
 		return
@@ -32,9 +35,31 @@ func (t *projectReferenceParseTask) start(loader *fileLoader) {
 	t.subTasks = createProjectReferenceParseTasks(subReferences)
 }
 
-func getSubTasksOfProjectReferenceParseTask(t *projectReferenceParseTask) []*projectReferenceParseTask {
+func (t *projectReferenceParseTask) getSubTasks() []*projectReferenceParseTask {
 	return t.subTasks
 }
+
+func (t *projectReferenceParseTask) shouldIncreaseDepth() bool {
+	return false
+}
+
+func (t *projectReferenceParseTask) shouldElideOnDepth() bool {
+	return false
+}
+
+func (t *projectReferenceParseTask) isLoaded() bool {
+	return t.loaded
+}
+
+func (t *projectReferenceParseTask) isRoot() bool {
+	return true
+}
+
+func (t *projectReferenceParseTask) isFromExternalLibrary() bool {
+	return false
+}
+
+func (t *projectReferenceParseTask) markFromExternalLibrary() {}
 
 func createProjectReferenceParseTasks(projectReferences []string) []*projectReferenceParseTask {
 	return core.Map(projectReferences, func(configName string) *projectReferenceParseTask {

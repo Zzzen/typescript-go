@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnosticwriter"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/parser"
@@ -590,7 +591,10 @@ func TestParseJsonSourceFileConfigFileContent(t *testing.T) {
 func getParsedWithJsonSourceFileApi(config testConfig, host tsoptions.ParseConfigHost, basePath string) *tsoptions.ParsedCommandLine {
 	configFileName := tspath.GetNormalizedAbsolutePath(config.configFileName, basePath)
 	path := tspath.ToPath(config.configFileName, basePath, host.FS().UseCaseSensitiveFileNames())
-	parsed := parser.ParseJSONText(configFileName, path, config.jsonText)
+	parsed := parser.ParseSourceFile(ast.SourceFileParseOptions{
+		FileName: configFileName,
+		Path:     path,
+	}, config.jsonText, core.ScriptKindJSON)
 	tsConfigSourceFile := &tsoptions.TsConfigSourceFile{
 		SourceFile: parsed,
 	}
@@ -808,7 +812,10 @@ func TestParseSrcCompiler(t *testing.T) {
 	jsonText, ok := fs.ReadFile(tsconfigFileName)
 	assert.Assert(t, ok)
 	tsconfigPath := tspath.ToPath(tsconfigFileName, compilerDir, fs.UseCaseSensitiveFileNames())
-	parsed := parser.ParseJSONText(tsconfigFileName, tsconfigPath, jsonText)
+	parsed := parser.ParseSourceFile(ast.SourceFileParseOptions{
+		FileName: tsconfigFileName,
+		Path:     tsconfigPath,
+	}, jsonText, core.ScriptKindJSON)
 
 	if len(parsed.Diagnostics()) > 0 {
 		for _, error := range parsed.Diagnostics() {
@@ -935,7 +942,6 @@ func TestParseSrcCompiler(t *testing.T) {
 		"transformers/classThis.ts",
 		"transformers/declarations.ts",
 		"transformers/destructuring.ts",
-		"transformers/es2015.ts",
 		"transformers/es2016.ts",
 		"transformers/es2017.ts",
 		"transformers/es2018.ts",
@@ -944,7 +950,6 @@ func TestParseSrcCompiler(t *testing.T) {
 		"transformers/es2021.ts",
 		"transformers/esDecorators.ts",
 		"transformers/esnext.ts",
-		"transformers/generators.ts",
 		"transformers/jsx.ts",
 		"transformers/legacyDecorators.ts",
 		"transformers/namedEvaluation.ts",
@@ -975,7 +980,10 @@ func BenchmarkParseSrcCompiler(b *testing.B) {
 	jsonText, ok := fs.ReadFile(tsconfigFileName)
 	assert.Assert(b, ok)
 	tsconfigPath := tspath.ToPath(tsconfigFileName, compilerDir, fs.UseCaseSensitiveFileNames())
-	parsed := parser.ParseJSONText(tsconfigFileName, tsconfigPath, jsonText)
+	parsed := parser.ParseSourceFile(ast.SourceFileParseOptions{
+		FileName: tsconfigFileName,
+		Path:     tsconfigPath,
+	}, jsonText, core.ScriptKindJSON)
 
 	b.ReportAllocs()
 
