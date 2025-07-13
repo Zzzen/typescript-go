@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	json2 "github.com/go-json-experiment/json"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
@@ -13,6 +14,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/repo"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/filefixture"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
+	"gotest.tools/v3/assert"
 )
 
 var packageJsonFixtures = []filefixture.Fixture{
@@ -56,6 +58,47 @@ func BenchmarkPackageJSON(b *testing.B) {
 					}, string(content), core.ScriptKindJSON)
 				}
 			})
+		})
+	}
+}
+
+func TestParse(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		want    packagejson.Fields
+	}{
+		{
+			name: "duplicate names",
+			content: `{
+				"name": "test-package",
+				"name": "test-package",
+				"version": "1.0.0"
+			}`,
+			want: packagejson.Fields{
+				HeaderFields: packagejson.HeaderFields{
+					Name:    packagejson.ExpectedOf("test-package"),
+					Version: packagejson.ExpectedOf("1.0.0"),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := packagejson.Parse([]byte(tt.content))
+			assert.NilError(t, err)
+			assert.DeepEqual(t, got, tt.want, cmpopts.IgnoreUnexported(
+				packagejson.Fields{},
+				packagejson.HeaderFields{},
+				packagejson.Expected[string]{},
+				packagejson.Expected[map[string]string]{},
+				packagejson.ExportsOrImports{},
+			))
 		})
 	}
 }
