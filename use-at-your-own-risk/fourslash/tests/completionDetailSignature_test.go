@@ -9,35 +9,31 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
 
-func TestCompletionsJSDocNoCrash3(t *testing.T) {
+func TestCompletionDetailSignature(t *testing.T) {
 	t.Parallel()
-	t.Skip()
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	const content = `// @strict: true
-// @filename: index.ts
-class MssqlClient {
-  /**
-   *
-   * @param {Object} - args
-   * @param {String} - args.parentTable
-   * @returns {Promise<{upStatement/**/, downStatement}>}
-   */
-  async relationCreate(args) {}
-}
+	const content = `
 
-export default MssqlClient;`
+/*a*/
+
+function foo(x: string): string;
+function foo(x: number): number;
+function foo(x: any): any {
+    return x;
+}`
 	f := fourslash.NewFourslash(t, nil /*capabilities*/, content)
-	f.VerifyCompletions(t, "", &fourslash.CompletionsExpectedList{
+	f.VerifyCompletions(t, "a", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &[]string{},
-			EditRange:        ignored,
+			CommitCharacters: &defaultCommitCharacters,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
-			Exact: []fourslash.CompletionsExpectedItem{
+			Includes: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
-					Label:    "readonly",
-					SortText: ptrTo(string(ls.SortTextGlobalsOrKeywords)),
+					Label:    "foo",
+					Kind:     ptrTo(lsproto.CompletionItemKindFunction),
+					SortText: ptrTo(string(ls.SortTextLocationPriority)),
+					Detail:   ptrTo("function foo(x: string): string\nfunction foo(x: number): number"),
 				},
 			},
 		},

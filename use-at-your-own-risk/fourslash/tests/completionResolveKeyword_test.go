@@ -9,35 +9,25 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
 
-func TestCompletionsJSDocNoCrash3(t *testing.T) {
+func TestCompletionResolveKeyword(t *testing.T) {
 	t.Parallel()
-	t.Skip()
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	const content = `// @strict: true
-// @filename: index.ts
-class MssqlClient {
-  /**
-   *
-   * @param {Object} - args
-   * @param {String} - args.parentTable
-   * @returns {Promise<{upStatement/**/, downStatement}>}
-   */
-  async relationCreate(args) {}
-}
-
-export default MssqlClient;`
+	const content = `class C {
+	/*a*/
+}`
 	f := fourslash.NewFourslash(t, nil /*capabilities*/, content)
-	f.VerifyCompletions(t, "", &fourslash.CompletionsExpectedList{
+	f.VerifyCompletions(t, "a", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
 			CommitCharacters: &[]string{},
-			EditRange:        ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
-			Exact: []fourslash.CompletionsExpectedItem{
+			Includes: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
-					Label:    "readonly",
+					Label:    "abstract",
+					Kind:     ptrTo(lsproto.CompletionItemKindKeyword),
 					SortText: ptrTo(string(ls.SortTextGlobalsOrKeywords)),
+					Detail:   ptrTo("abstract"),
 				},
 			},
 		},
