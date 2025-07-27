@@ -1,20 +1,17 @@
 package ls
 
 import (
-	"context"
-
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 )
 
 type LanguageService struct {
-	ctx        context.Context
 	host       Host
 	converters *Converters
 }
 
-func NewLanguageService(ctx context.Context, host Host) *LanguageService {
+func NewLanguageService(host Host) *LanguageService {
 	return &LanguageService{
 		host:       host,
 		converters: NewConverters(host.GetPositionEncoding(), host.GetLineMap),

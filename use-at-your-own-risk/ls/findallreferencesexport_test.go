@@ -1,6 +1,8 @@
 package ls
 
 import (
+	"context"
+
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/astnav"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
@@ -17,10 +19,10 @@ func (l *LanguageService) GetExpectedReferenceFromMarker(fileName string, pos in
 	}
 }
 
-func (l *LanguageService) TestProvideReferences(fileName string, pos int) []*lsproto.Location {
+func (l *LanguageService) TestProvideReferences(fileName string, pos int) (lsproto.ReferencesResponse, error) {
 	_, sourceFile := l.tryGetProgramAndFile(fileName)
 	lsPos := l.converters.PositionToLineAndCharacter(sourceFile, core.TextPos(pos))
-	return l.ProvideReferences(&lsproto.ReferenceParams{
+	return l.ProvideReferences(context.TODO(), &lsproto.ReferenceParams{
 		TextDocumentPositionParams: lsproto.TextDocumentPositionParams{
 			TextDocument: lsproto.TextDocumentIdentifier{
 				Uri: FileNameToDocumentURI(fileName),
