@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -22,13 +23,13 @@ const e2: E | E2 = /*b*/`
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
 			CommitCharacters: &[]string{},
-			EditRange:        ignored,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Includes: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label:     "E",
-					Preselect: ptrTo(true),
+					Preselect: PtrTo(true),
 				},
 			},
 		},
@@ -37,13 +38,13 @@ const e2: E | E2 = /*b*/`
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
 			CommitCharacters: &[]string{},
-			EditRange:        ignored,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Includes: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label:     "E",
-					Preselect: ptrTo(true),
+					Preselect: PtrTo(true),
 				},
 				&lsproto.CompletionItem{
 					Label: "E2",

@@ -1,11 +1,11 @@
 package incrementaltestutil
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/incremental"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs"
 )

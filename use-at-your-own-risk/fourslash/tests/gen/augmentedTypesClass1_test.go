@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -21,14 +22,14 @@ r./*2*/`
 	f.VerifyCompletions(t, "1", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Includes: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label:  "prototype",
-					Detail: ptrTo("(property) c5b.prototype: c5b"),
+					Detail: PtrTo("(property) c5b.prototype: c5b"),
 				},
 			},
 		},
@@ -37,14 +38,14 @@ r./*2*/`
 	f.VerifyCompletions(t, "2", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Includes: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label:  "foo",
-					Detail: ptrTo("(method) c5b.foo(): void"),
+					Detail: PtrTo("(method) c5b.foo(): void"),
 				},
 			},
 		},

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
@@ -18,8 +19,8 @@ func TestCompletionListAfterRegularExpressionLiteral1(t *testing.T) {
 	f.VerifyCompletions(t, "", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Unsorted: []fourslash.CompletionsExpectedItem{
@@ -32,7 +33,7 @@ func TestCompletionListAfterRegularExpressionLiteral1(t *testing.T) {
 				"lastIndex",
 				&lsproto.CompletionItem{
 					Label:    "compile",
-					SortText: ptrTo(string(ls.DeprecateSortText(ls.SortTextLocationPriority))),
+					SortText: PtrTo(string(ls.DeprecateSortText(ls.SortTextLocationPriority))),
 				},
 			},
 		},

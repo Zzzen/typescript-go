@@ -5,7 +5,6 @@ package main
 import (
 	"bytes"
 	"cmp"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"go/format"
@@ -21,6 +20,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/repo"
 )
 
@@ -108,7 +108,7 @@ func readRawMessages(p string) map[int]*diagnosticMessage {
 	defer file.Close()
 
 	var rawMessages map[string]*diagnosticMessage
-	if err := json.NewDecoder(file).Decode(&rawMessages); err != nil {
+	if err := json.UnmarshalRead(file, &rawMessages); err != nil {
 		log.Fatalf("failed to decode file: %v", err)
 		return nil
 	}

@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -12,6 +11,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/astnav"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/checker"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/project"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"

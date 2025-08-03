@@ -1,7 +1,6 @@
 package jsnum
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"math"
@@ -10,6 +9,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/jstest"
 	"gotest.tools/v3/assert"
 )

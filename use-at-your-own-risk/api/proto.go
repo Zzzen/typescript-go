@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -10,6 +9,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/checker"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/project"
 )
 
@@ -200,7 +200,7 @@ type GetSourceFileParams struct {
 	FileName string                  `json:"fileName"`
 }
 
-func unmarshalPayload(method string, payload json.RawMessage) (any, error) {
+func unmarshalPayload(method string, payload json.Value) (any, error) {
 	unmarshaler, ok := unmarshalers[Method(method)]
 	if !ok {
 		return nil, fmt.Errorf("unknown API method %q", method)

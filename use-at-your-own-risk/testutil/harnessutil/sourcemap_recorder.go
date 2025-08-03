@@ -1,13 +1,13 @@
 package harnessutil
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/sourcemap"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/stringutil"
 )

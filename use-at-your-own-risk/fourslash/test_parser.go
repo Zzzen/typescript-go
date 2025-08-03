@@ -1,13 +1,13 @@
 package fourslash
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/stringutil"

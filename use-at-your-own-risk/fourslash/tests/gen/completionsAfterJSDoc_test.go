@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
@@ -22,14 +23,14 @@ func TestCompletionsAfterJSDoc(t *testing.T) {
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
 			CommitCharacters: &[]string{},
-			EditRange:        ignored,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Exact: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label:    "readonly",
-					Kind:     ptrTo(lsproto.CompletionItemKindKeyword),
-					SortText: ptrTo(string(ls.SortTextGlobalsOrKeywords)),
+					Kind:     PtrTo(lsproto.CompletionItemKindKeyword),
+					SortText: PtrTo(string(ls.SortTextGlobalsOrKeywords)),
 				},
 			},
 		},

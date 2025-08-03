@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -22,16 +23,16 @@ switch (e) {
 	f.VerifyCompletions(t, f.Markers(), &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Includes: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label:     "Enu",
-					Detail:    ptrTo("enum Enu"),
-					Kind:      ptrTo(lsproto.CompletionItemKindEnum),
-					Preselect: ptrTo(true),
+					Detail:    PtrTo("enum Enu"),
+					Kind:      PtrTo(lsproto.CompletionItemKindEnum),
+					Preselect: PtrTo(true),
 				},
 			},
 		},

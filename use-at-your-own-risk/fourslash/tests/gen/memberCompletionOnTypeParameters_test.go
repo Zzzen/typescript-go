@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -29,18 +30,18 @@ function foo<S, T extends IFoo, U extends Object, V extends IFoo>() {
 	f.VerifyCompletions(t, []string{"T", "V"}, &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Exact: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label:  "x",
-					Detail: ptrTo("(property) IFoo.x: number"),
+					Detail: PtrTo("(property) IFoo.x: number"),
 				},
 				&lsproto.CompletionItem{
 					Label:  "y",
-					Detail: ptrTo("(property) IFoo.y: string"),
+					Detail: PtrTo("(property) IFoo.y: string"),
 				},
 			},
 		},
@@ -48,8 +49,8 @@ function foo<S, T extends IFoo, U extends Object, V extends IFoo>() {
 	f.VerifyCompletions(t, "U", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Unsorted: []fourslash.CompletionsExpectedItem{

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
@@ -39,14 +40,14 @@ var test1 = function(x) { return x./*4*/ }, test2 = function(a) { return a./*5*/
 	f.VerifyCompletions(t, "1", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Includes: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label: "charCodeAt",
-					Kind:  ptrTo(lsproto.CompletionItemKindMethod),
+					Kind:  PtrTo(lsproto.CompletionItemKindMethod),
 				},
 			},
 		},
@@ -54,14 +55,14 @@ var test1 = function(x) { return x./*4*/ }, test2 = function(a) { return a./*5*/
 	f.VerifyCompletions(t, []string{"2", "3", "4"}, &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Includes: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label: "toExponential",
-					Kind:  ptrTo(lsproto.CompletionItemKindMethod),
+					Kind:  PtrTo(lsproto.CompletionItemKindMethod),
 				},
 			},
 		},
@@ -69,15 +70,15 @@ var test1 = function(x) { return x./*4*/ }, test2 = function(a) { return a./*5*/
 	f.VerifyCompletions(t, "5", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Includes: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label:    "test1",
-					Kind:     ptrTo(lsproto.CompletionItemKindText),
-					SortText: ptrTo(string(ls.SortTextJavascriptIdentifiers)),
+					Kind:     PtrTo(lsproto.CompletionItemKindText),
+					SortText: PtrTo(string(ls.SortTextJavascriptIdentifiers)),
 				},
 			},
 		},

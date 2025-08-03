@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
@@ -33,25 +34,25 @@ func TestGetJavaScriptCompletions20(t *testing.T) {
 	f.VerifyCompletions(t, "", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
-			Exact: completionFunctionMembersWithPrototypePlus(
+			Exact: CompletionFunctionMembersWithPrototypePlus(
 				[]fourslash.CompletionsExpectedItem{
 					"getName",
 					"getNa",
 					&lsproto.CompletionItem{
 						Label:    "Person",
-						SortText: ptrTo(string(ls.SortTextJavascriptIdentifiers)),
+						SortText: PtrTo(string(ls.SortTextJavascriptIdentifiers)),
 					},
 					&lsproto.CompletionItem{
 						Label:    "name",
-						SortText: ptrTo(string(ls.SortTextJavascriptIdentifiers)),
+						SortText: PtrTo(string(ls.SortTextJavascriptIdentifiers)),
 					},
 					&lsproto.CompletionItem{
 						Label:    "age",
-						SortText: ptrTo(string(ls.SortTextJavascriptIdentifiers)),
+						SortText: PtrTo(string(ls.SortTextJavascriptIdentifiers)),
 					},
 				}),
 		},

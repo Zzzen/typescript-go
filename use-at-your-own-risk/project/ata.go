@@ -1,7 +1,6 @@
 package project
 
 import (
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"sync"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/module"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/semver"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"

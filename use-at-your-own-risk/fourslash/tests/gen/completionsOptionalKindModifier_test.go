@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -20,22 +21,22 @@ x./*a*/;
 	f.VerifyCompletions(t, "a", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Exact: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label:      "a?",
-					InsertText: ptrTo("a"),
-					FilterText: ptrTo("a"),
-					Kind:       ptrTo(lsproto.CompletionItemKindField),
+					InsertText: PtrTo("a"),
+					FilterText: PtrTo("a"),
+					Kind:       PtrTo(lsproto.CompletionItemKindField),
 				},
 				&lsproto.CompletionItem{
 					Label:      "method?",
-					InsertText: ptrTo("method"),
-					FilterText: ptrTo("method"),
-					Kind:       ptrTo(lsproto.CompletionItemKindMethod),
+					InsertText: PtrTo("method"),
+					FilterText: PtrTo("method"),
+					Kind:       PtrTo(lsproto.CompletionItemKindMethod),
 				},
 			},
 		},

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -23,15 +24,15 @@ declare var AnalyserNode: {
 	f.VerifyCompletions(t, "", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Includes: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label:  "AnalyserNode",
-					Detail: ptrTo("interface AnalyserNode\nvar AnalyserNode: {\n    new (): AnalyserNode;\n    prototype: AnalyserNode;\n}"),
-					Kind:   ptrTo(lsproto.CompletionItemKindVariable),
+					Detail: PtrTo("interface AnalyserNode\nvar AnalyserNode: {\n    new (): AnalyserNode;\n    prototype: AnalyserNode;\n}"),
+					Kind:   PtrTo(lsproto.CompletionItemKindVariable),
 				},
 			},
 		},

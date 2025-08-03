@@ -2,7 +2,6 @@ package incremental
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/outputpaths"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )

@@ -1,8 +1,9 @@
 package packagejson
 
 import (
-	"encoding/json"
 	"reflect"
+
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 )
 
 type Expected[T any] struct {

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -25,26 +26,26 @@ func TestMemberListInReopenedEnum(t *testing.T) {
 	f.VerifyCompletions(t, "1", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Exact: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label:  "A",
-					Detail: ptrTo("(enum member) E.A = 0"),
+					Detail: PtrTo("(enum member) E.A = 0"),
 				},
 				&lsproto.CompletionItem{
 					Label:  "B",
-					Detail: ptrTo("(enum member) E.B = 1"),
+					Detail: PtrTo("(enum member) E.B = 1"),
 				},
 				&lsproto.CompletionItem{
 					Label:  "C",
-					Detail: ptrTo("(enum member) E.C = 0"),
+					Detail: PtrTo("(enum member) E.C = 0"),
 				},
 				&lsproto.CompletionItem{
 					Label:  "D",
-					Detail: ptrTo("(enum member) E.D = 1"),
+					Detail: PtrTo("(enum member) E.D = 1"),
 				},
 			},
 		},

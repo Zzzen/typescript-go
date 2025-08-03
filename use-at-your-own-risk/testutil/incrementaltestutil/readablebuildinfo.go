@@ -1,7 +1,6 @@
 package incrementaltestutil
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/incremental"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 )
 
 type readableBuildInfo struct {

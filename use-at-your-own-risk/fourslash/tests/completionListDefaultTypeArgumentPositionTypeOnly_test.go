@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
 
@@ -16,10 +17,10 @@ function test1<T = /*1*/>() {}`
 	f.VerifyCompletions(t, "1", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
+			CommitCharacters: &DefaultCommitCharacters,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
-			Exact: completionGlobalTypes,
+			Exact: CompletionGlobalTypes,
 		},
 	})
 }

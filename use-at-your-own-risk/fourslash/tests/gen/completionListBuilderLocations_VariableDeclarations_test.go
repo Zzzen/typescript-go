@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
 
@@ -30,10 +31,10 @@ var y = 10; y=/*var12*/`
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
 			CommitCharacters: &[]string{},
-			EditRange:        ignored,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
-			Exact: completionGlobalsPlus(
+			Exact: CompletionGlobalsPlus(
 				[]fourslash.CompletionsExpectedItem{
 					"C",
 					"y",
@@ -44,10 +45,10 @@ var y = 10; y=/*var12*/`
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
 			CommitCharacters: &[]string{},
-			EditRange:        ignored,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
-			Exact: completionGlobalsPlus(
+			Exact: CompletionGlobalsPlus(
 				[]fourslash.CompletionsExpectedItem{
 					"C",
 					"x",

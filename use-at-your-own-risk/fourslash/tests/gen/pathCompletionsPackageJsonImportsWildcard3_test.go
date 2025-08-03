@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -37,21 +38,21 @@ import { } from "/**/";`
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
 			CommitCharacters: &[]string{},
-			EditRange:        ignored,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Exact: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label: "#component-blah",
-					Kind:  ptrTo(lsproto.CompletionItemKindFile),
+					Kind:  PtrTo(lsproto.CompletionItemKindFile),
 				},
 				&lsproto.CompletionItem{
 					Label: "#component-index",
-					Kind:  ptrTo(lsproto.CompletionItemKindFile),
+					Kind:  PtrTo(lsproto.CompletionItemKindFile),
 				},
 				&lsproto.CompletionItem{
 					Label: "#component-subfolder",
-					Kind:  ptrTo(lsproto.CompletionItemKindFolder),
+					Kind:  PtrTo(lsproto.CompletionItemKindFolder),
 				},
 			},
 		},
@@ -61,13 +62,13 @@ import { } from "/**/";`
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
 			CommitCharacters: &[]string{},
-			EditRange:        ignored,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Exact: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label: "one",
-					Kind:  ptrTo(lsproto.CompletionItemKindFile),
+					Kind:  PtrTo(lsproto.CompletionItemKindFile),
 				},
 			},
 		},

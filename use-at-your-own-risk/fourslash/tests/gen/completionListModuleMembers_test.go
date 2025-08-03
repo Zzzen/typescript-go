@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
 
@@ -35,8 +36,8 @@ interface TestInterface implements Module./*TypeReferenceInImplementsList*/ { }`
 	f.VerifyCompletions(t, []string{"ValueReference", "TypeReferenceInExtendsList"}, &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Unsorted: []fourslash.CompletionsExpectedItem{
@@ -50,8 +51,8 @@ interface TestInterface implements Module./*TypeReferenceInImplementsList*/ { }`
 	f.VerifyCompletions(t, []string{"TypeReference", "TypeReferenceInImplementsList"}, &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Unsorted: []fourslash.CompletionsExpectedItem{

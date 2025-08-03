@@ -1,9 +1,9 @@
 package packagejson_test
 
 import (
-	"encoding/json"
 	"testing"
 
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
 	"gotest.tools/v3/assert"
 )

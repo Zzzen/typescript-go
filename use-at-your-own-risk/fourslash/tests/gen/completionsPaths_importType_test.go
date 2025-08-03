@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -28,13 +29,13 @@ type B = import(".//*2*/");
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
 			CommitCharacters: &[]string{},
-			EditRange:        ignored,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Exact: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label: "package",
-					Kind:  ptrTo(lsproto.CompletionItemKindFolder),
+					Kind:  PtrTo(lsproto.CompletionItemKindFolder),
 				},
 			},
 		},
@@ -43,33 +44,33 @@ type B = import(".//*2*/");
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
 			CommitCharacters: &[]string{},
-			EditRange:        ignored,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Exact: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label: "lib",
-					Kind:  ptrTo(lsproto.CompletionItemKindFile),
+					Kind:  PtrTo(lsproto.CompletionItemKindFile),
 				},
 				&lsproto.CompletionItem{
 					Label: "lib.decorators",
-					Kind:  ptrTo(lsproto.CompletionItemKindFile),
+					Kind:  PtrTo(lsproto.CompletionItemKindFile),
 				},
 				&lsproto.CompletionItem{
 					Label: "lib.decorators.legacy",
-					Kind:  ptrTo(lsproto.CompletionItemKindFile),
+					Kind:  PtrTo(lsproto.CompletionItemKindFile),
 				},
 				&lsproto.CompletionItem{
 					Label: "ns",
-					Kind:  ptrTo(lsproto.CompletionItemKindFile),
+					Kind:  PtrTo(lsproto.CompletionItemKindFile),
 				},
 				&lsproto.CompletionItem{
 					Label: "user",
-					Kind:  ptrTo(lsproto.CompletionItemKindFile),
+					Kind:  PtrTo(lsproto.CompletionItemKindFile),
 				},
 				&lsproto.CompletionItem{
 					Label: "node_modules",
-					Kind:  ptrTo(lsproto.CompletionItemKindFolder),
+					Kind:  PtrTo(lsproto.CompletionItemKindFolder),
 				},
 			},
 		},

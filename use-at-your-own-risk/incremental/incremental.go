@@ -1,9 +1,8 @@
 package incremental
 
 import (
-	"encoding/json"
-
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/outputpaths"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"

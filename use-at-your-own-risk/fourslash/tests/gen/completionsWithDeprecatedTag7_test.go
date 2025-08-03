@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
@@ -29,15 +30,15 @@ const i: I = {
 	f.VerifyCompletions(t, "", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &defaultCommitCharacters,
-			EditRange:        ignored,
+			CommitCharacters: &DefaultCommitCharacters,
+			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Exact: []fourslash.CompletionsExpectedItem{
 				&lsproto.CompletionItem{
 					Label:    "a",
-					SortText: ptrTo(string(ls.DeprecateSortText(ls.SortTextMemberDeclaredBySpreadAssignment))),
-					Kind:     ptrTo(lsproto.CompletionItemKindField),
+					SortText: PtrTo(string(ls.DeprecateSortText(ls.SortTextMemberDeclaredBySpreadAssignment))),
+					Kind:     PtrTo(lsproto.CompletionItemKindField),
 				},
 			},
 		},

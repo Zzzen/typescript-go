@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/bundled"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/project"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs/osvfs"
