@@ -1,9 +1,9 @@
 package packagejson
 
 import (
+	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 )
 
 type objectKind int8

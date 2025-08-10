@@ -20,7 +20,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
+	"github.com/go-json-experiment/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/repo"
 )
 

@@ -3,7 +3,7 @@ package lsproto
 import (
 	"testing"
 
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
+	"github.com/go-json-experiment/json"
 	"gotest.tools/v3/assert"
 )
 

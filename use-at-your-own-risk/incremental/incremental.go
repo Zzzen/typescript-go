@@ -1,11 +1,9 @@
 package incremental
 
 import (
+	"github.com/go-json-experiment/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/outputpaths"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
 
 type BuildInfoReader interface {
@@ -39,10 +37,7 @@ func NewBuildInfoReader(
 }
 
 func ReadBuildInfoProgram(config *tsoptions.ParsedCommandLine, reader BuildInfoReader) *Program {
-	buildInfoFileName := outputpaths.GetBuildInfoFileName(config.CompilerOptions(), tspath.ComparePathsOptions{
-		CurrentDirectory:          config.GetCurrentDirectory(),
-		UseCaseSensitiveFileNames: config.UseCaseSensitiveFileNames(),
-	})
+	buildInfoFileName := config.GetBuildInfoFileName()
 	if buildInfoFileName == "" {
 		return nil
 	}

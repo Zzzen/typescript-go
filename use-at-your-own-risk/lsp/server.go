@@ -13,9 +13,9 @@ import (
 	"sync/atomic"
 	"syscall"
 
+	"github.com/go-json-experiment/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/project"
@@ -660,7 +660,7 @@ func (s *Server) handleInitialized(ctx context.Context, params *lsproto.Initiali
 
 func (s *Server) handleShutdown(ctx context.Context, params any) (lsproto.ShutdownResponse, error) {
 	s.projectService.Close()
-	return nil, nil
+	return lsproto.ShutdownResponse{}, nil
 }
 
 func (s *Server) handleExit(ctx context.Context, params any) error {

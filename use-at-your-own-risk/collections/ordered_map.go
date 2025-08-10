@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 )
 
 // OrderedMap is an insertion ordered map.

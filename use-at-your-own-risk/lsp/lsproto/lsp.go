@@ -3,8 +3,8 @@ package lsproto
 import (
 	"fmt"
 
+	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 )
 
 type DocumentUri string // !!!
@@ -82,4 +82,21 @@ type RequestInfo[Params, Resp any] struct {
 type NotificationInfo[Params any] struct {
 	_      [0]Params
 	Method Method
+}
+
+type Null struct{}
+
+func (Null) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
+	data, err := dec.ReadValue()
+	if err != nil {
+		return err
+	}
+	if string(data) != "null" {
+		return fmt.Errorf("expected null, got %s", data)
+	}
+	return nil
+}
+
+func (Null) MarshalJSONTo(enc *jsontext.Encoder) error {
+	return enc.WriteToken(jsontext.Null)
 }

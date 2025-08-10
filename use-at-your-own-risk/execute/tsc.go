@@ -14,7 +14,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/format"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/incremental"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/jsonutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/parser"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/pprof"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"
@@ -413,7 +413,7 @@ func emitFilesAndReportErrors(
 
 func showConfig(sys System, config *core.CompilerOptions) {
 	// !!!
-	_ = json.MarshalIndentWrite(sys.Writer(), config, "", "    ")
+	_ = jsonutil.MarshalIndentWrite(sys.Writer(), config, "", "    ")
 }
 
 func listFiles(sys System, program compiler.ProgramLike) {

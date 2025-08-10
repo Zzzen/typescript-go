@@ -1,8 +1,8 @@
 package packagejson
 
 import (
+	json "github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
-	json "github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 )
 
 type HeaderFields struct {

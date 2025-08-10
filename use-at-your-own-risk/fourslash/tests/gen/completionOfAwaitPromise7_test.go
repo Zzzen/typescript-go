@@ -9,20 +9,16 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
 
-func TestProto(t *testing.T) {
+func TestCompletionOfAwaitPromise7(t *testing.T) {
 	t.Parallel()
 	t.Skip()
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	const content = `module M {
-    export interface /*1*/__proto__ {}
-}
-var /*2*/__proto__: M.__proto__;
-/*3*/
-var /*4*/fun: (__proto__: any) => boolean;`
+	const content = `async function foo(x: Promise<string>) {
+    console.log
+    [|x./**/|]
+}`
 	f := fourslash.NewFourslash(t, nil /*capabilities*/, content)
-	f.VerifyQuickInfoAt(t, "1", "interface M.__proto__", "")
-	f.VerifyQuickInfoAt(t, "2", "var __proto__: M.__proto__", "")
-	f.VerifyCompletions(t, "3", &fourslash.CompletionsExpectedList{
+	f.VerifyCompletions(t, "", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
 			CommitCharacters: &DefaultCommitCharacters,
@@ -30,14 +26,18 @@ var /*4*/fun: (__proto__: any) => boolean;`
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Includes: []fourslash.CompletionsExpectedItem{
+				"then",
 				&lsproto.CompletionItem{
-					Label:  "__proto__",
-					Detail: PtrTo("var __proto__: M.__proto__"),
+					Label:      "trim",
+					InsertText: PtrTo(";(await x).trim"),
+					TextEdit: &lsproto.TextEditOrInsertReplaceEdit{
+						TextEdit: &lsproto.TextEdit{
+							NewText: "trim",
+							Range:   f.Ranges()[0].LSRange,
+						},
+					},
 				},
 			},
 		},
 	})
-	f.Insert(t, "__proto__")
-	f.VerifyBaselineGoToDefinition(t)
-	f.VerifyQuickInfoAt(t, "4", "var fun: (__proto__: any) => boolean", "")
 }
