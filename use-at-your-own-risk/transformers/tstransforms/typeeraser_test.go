@@ -7,6 +7,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/emittestutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/parsetestutil"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/transformers"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/transformers/tstransforms"
 )
 
@@ -99,7 +100,7 @@ func TestTypeEraser(t *testing.T) {
 			if rec.vms {
 				compilerOptions.VerbatimModuleSyntax = core.TSTrue
 			}
-			emittestutil.CheckEmit(t, nil, tstransforms.NewTypeEraserTransformer(printer.NewEmitContext(), compilerOptions).TransformSourceFile(file), rec.output)
+			emittestutil.CheckEmit(t, nil, tstransforms.NewTypeEraserTransformer(&transformers.TransformOptions{CompilerOptions: compilerOptions, Context: printer.NewEmitContext()}).TransformSourceFile(file), rec.output)
 		})
 	}
 }

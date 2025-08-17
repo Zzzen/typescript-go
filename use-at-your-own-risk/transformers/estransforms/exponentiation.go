@@ -2,7 +2,6 @@ package estransforms
 
 import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/transformers"
 )
 
@@ -85,7 +84,7 @@ func (ch *exponentiationTransformer) visitExponentiationExpression(node *ast.Bin
 	return result
 }
 
-func newExponentiationTransformer(emitContext *printer.EmitContext) *transformers.Transformer {
+func newExponentiationTransformer(opts *transformers.TransformOptions) *transformers.Transformer {
 	tx := &exponentiationTransformer{}
-	return tx.NewTransformer(tx.visit, emitContext)
+	return tx.NewTransformer(tx.visit, opts.Context)
 }

@@ -2,7 +2,6 @@ package estransforms
 
 import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/transformers"
 )
 
@@ -14,7 +13,7 @@ func (ch *forawaitTransformer) visit(node *ast.Node) *ast.Node {
 	return node // !!!
 }
 
-func newforawaitTransformer(emitContext *printer.EmitContext) *transformers.Transformer {
+func newforawaitTransformer(opts *transformers.TransformOptions) *transformers.Transformer {
 	tx := &forawaitTransformer{}
-	return tx.NewTransformer(tx.visit, emitContext)
+	return tx.NewTransformer(tx.visit, opts.Context)
 }

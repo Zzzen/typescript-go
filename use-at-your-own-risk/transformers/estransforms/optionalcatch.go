@@ -2,7 +2,6 @@ package estransforms
 
 import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/transformers"
 )
 
@@ -32,7 +31,7 @@ func (ch *optionalCatchTransformer) visitCatchClause(node *ast.CatchClause) *ast
 	return ch.Visitor().VisitEachChild(node.AsNode())
 }
 
-func newOptionalCatchTransformer(emitContext *printer.EmitContext) *transformers.Transformer {
+func newOptionalCatchTransformer(opts *transformers.TransformOptions) *transformers.Transformer {
 	tx := &optionalCatchTransformer{}
-	return tx.NewTransformer(tx.visit, emitContext)
+	return tx.NewTransformer(tx.visit, opts.Context)
 }
