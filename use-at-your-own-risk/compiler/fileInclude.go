@@ -8,6 +8,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/module"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
@@ -57,7 +58,11 @@ type referenceFileLocation struct {
 
 func (r *referenceFileLocation) text() string {
 	if r.node != nil {
-		return r.node.Text()
+		if !ast.NodeIsSynthesized(r.node) {
+			return r.file.Text()[scanner.SkipTrivia(r.file.Text(), r.node.Loc.Pos()):r.node.End()]
+		} else {
+			return fmt.Sprintf(`"%s"`, r.node.Text())
+		}
 	} else {
 		return r.file.Text()[r.ref.Pos():r.ref.End()]
 	}

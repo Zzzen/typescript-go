@@ -7,6 +7,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/astnav"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/stringutil"
 )
@@ -170,7 +171,7 @@ func getActualIndentationForListStartLine(list *ast.NodeList, sourceFile *ast.So
 }
 
 func deriveActualIndentationFromList(list *ast.NodeList, index int, sourceFile *ast.SourceFile, options *FormatCodeSettings) int {
-	// Debug.assert(index >= 0 && index < list.length); // !!!
+	debug.Assert(list != nil && index >= 0 && index < len(list.Nodes))
 
 	node := list.Nodes[index]
 
@@ -238,7 +239,7 @@ func findFirstNonWhitespaceCharacterAndColumn(startPos int, endPos int, sourceFi
 func childStartsOnTheSameLineWithElseInIfStatement(parent *ast.Node, child *ast.Node, childStartLine int, sourceFile *ast.SourceFile) bool {
 	if parent.Kind == ast.KindIfStatement && parent.AsIfStatement().ElseStatement == child {
 		elseKeyword := astnav.FindPrecedingToken(sourceFile, child.Pos())
-		// Debug.assert(elseKeyword !== undefined); // !!!
+		debug.AssertIsDefined(elseKeyword)
 		elseKeywordStartLine, _ := getStartLineAndCharacterForNode(elseKeyword, sourceFile)
 		return elseKeywordStartLine == childStartLine
 	}

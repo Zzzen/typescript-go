@@ -5,6 +5,7 @@ import (
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/transformers"
 )
@@ -862,15 +863,19 @@ func (ch *objectRestSpreadTransformer) emitExpression(node *ast.Node) {
 }
 
 func (ch *objectRestSpreadTransformer) emitAssignment(target *ast.Node, value *ast.Node, location core.TextRange, original *ast.Node) {
-	// Debug.assertNode(target, createAssignmentCallback ? isIdentifier : isExpression); // !!!
+	debug.AssertNode(target, ast.IsExpression)
 	expr := ch.Factory().NewAssignmentExpression(ch.Visitor().VisitNode(target), value)
 	expr.Loc = location
 	ch.EmitContext().SetOriginal(expr, original)
 	ch.emitExpression(expr)
 }
 
+func isBindingName(node *ast.Node) bool {
+	return node.Kind == ast.KindIdentifier || node.Kind == ast.KindArrayBindingPattern || node.Kind == ast.KindObjectBindingPattern
+}
+
 func (ch *objectRestSpreadTransformer) emitBinding(target *ast.Node, value *ast.Node, location core.TextRange, original *ast.Node) {
-	// Debug.assertNode(target, isBindingName); // !!!
+	debug.AssertNode(target, isBindingName)
 	if len(ch.ctx.currentExpressions) > 0 {
 		value = ch.Factory().InlineExpressions(append(ch.ctx.currentExpressions, value))
 		ch.ctx.currentExpressions = nil

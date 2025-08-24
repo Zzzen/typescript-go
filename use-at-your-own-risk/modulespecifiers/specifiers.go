@@ -8,6 +8,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/module"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/outputpaths"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
@@ -202,7 +203,7 @@ func getEachFileNameOfModule(
 	cwd := host.GetCurrentDirectory()
 	importedPath := tspath.ToPath(importedFileName, cwd, host.UseCaseSensitiveFileNames())
 	var referenceRedirect string
-	outputAndReference := host.GetOutputAndProjectReference(importedPath)
+	outputAndReference := host.GetProjectReferenceFromSource(importedPath)
 	if outputAndReference != nil && outputAndReference.OutputDts != "" {
 		referenceRedirect = outputAndReference.OutputDts
 	}
@@ -592,7 +593,7 @@ func processEnding(
 		// TODO: possible dead code in strada in this branch to do with declaration file name handling
 		return fileName
 	default:
-		// Debug.assertNever(allowedEndings[0]); // !!!
+		debug.AssertNever(allowedEndings[0])
 		return ""
 	}
 }

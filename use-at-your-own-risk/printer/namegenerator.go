@@ -6,6 +6,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 )
 
 // Flags enum to track count of temp variables and a few dedicated names
@@ -233,7 +234,7 @@ func (g *NameGenerator) makeName(name *ast.Node) string {
 			case GeneratedIdentifierFlagsAuto:
 				return g.makeTempVariableName(tempFlagsAuto, autoGenerate.Flags.IsReservedInNestedScopes(), ast.IsPrivateIdentifier(name), autoGenerate.Prefix, autoGenerate.Suffix)
 			case GeneratedIdentifierFlagsLoop:
-				// Debug.assertNode(name, isIdentifier);
+				debug.AssertNode(name, ast.IsIdentifier)
 				return g.makeTempVariableName(tempFlags_i, autoGenerate.Flags.IsReservedInNestedScopes(), false /*privateName*/, autoGenerate.Prefix, autoGenerate.Suffix)
 			case GeneratedIdentifierFlagsUnique:
 				return g.makeUniqueName(

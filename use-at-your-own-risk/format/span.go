@@ -10,6 +10,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/astnav"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/stringutil"
 )
@@ -335,7 +336,7 @@ func (w *formatSpanWorker) processChildNode(
 	isListItem bool,
 	isFirstListItem bool,
 ) int {
-	// Debug.assert(!nodeIsSynthesized(child)); // !!!
+	debug.Assert(!ast.NodeIsSynthesized(child))
 
 	if ast.NodeIsMissing(child) || isGrammarError(parent, child) {
 		return inheritedIndentation
@@ -397,7 +398,7 @@ func (w *formatSpanWorker) processChildNode(
 		tokenInfo := w.formattingScanner.readTokenInfo(child)
 		// JSX text shouldn't affect indenting
 		if child.Kind != ast.KindJsxText {
-			// Debug.assert(tokenInfo.token.end === child.end, "Token end is child end"); // !!!
+			debug.Assert(tokenInfo.token.Loc.End() == child.Loc.End(), "Token end is child end")
 			w.consumeTokenAndAdvanceScanner(tokenInfo, node, parentDynamicIndentation, child, false)
 			return inheritedIndentation
 		}
@@ -430,8 +431,9 @@ func (w *formatSpanWorker) processChildNodes(
 	parentStartLine int,
 	parentDynamicIndentation *dynamicIndenter,
 ) {
-	// Debug.assert(isNodeArray(nodes)); // !!!
-	// Debug.assert(!nodeIsSynthesized(nodes)); // !!!
+	debug.AssertIsDefined(nodes)
+	debug.Assert(!ast.PositionIsSynthesized(nodes.Pos()))
+	debug.Assert(!ast.PositionIsSynthesized(nodes.End()))
 
 	listStartToken := getOpenTokenForList(parent, nodes)
 
@@ -658,7 +660,7 @@ func (w *formatSpanWorker) processPair(currentItem TextRangeWithKind, currentSta
 						dynamicIndentation.recomputeIndentation( /*lineAddedByFormatting*/ true, contextNode)
 					}
 				default:
-					// Debug.assert(lineAction === LineAction.None); // !!!
+					debug.Assert(lineAction == LineActionNone)
 				}
 			}
 
@@ -814,7 +816,8 @@ func (w *formatSpanWorker) trimTrailingWhitespacesForLines(line1 int, line2 int,
 
 		whitespaceStart := w.getTrailingWhitespaceStartPosition(lineStartPosition, lineEndPosition)
 		if whitespaceStart != -1 {
-			// Debug.assert(whitespaceStart === lineStartPosition || !isWhiteSpaceSingleLine(sourceFile.text.charCodeAt(whitespaceStart - 1))); // !!!
+			r, _ := utf8.DecodeRuneInString(w.sourceFile.Text()[whitespaceStart-1:])
+			debug.Assert(whitespaceStart == lineStartPosition || !stringutil.IsWhiteSpaceSingleLine(r))
 			w.recordDelete(whitespaceStart, lineEndPosition+1-whitespaceStart)
 		}
 	}

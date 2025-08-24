@@ -12,6 +12,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/checker"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/jsnum"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsutil"
@@ -119,10 +120,7 @@ func getLocalSymbolForExportSpecifier(referenceLocation *ast.Identifier, referen
 }
 
 func isExportSpecifierAlias(referenceLocation *ast.Identifier, exportSpecifier *ast.ExportSpecifier) bool {
-	// Debug.assert(exportSpecifier.PropertyName == referenceLocation || exportSpecifier.Name == referenceLocation);
-	if !(exportSpecifier.PropertyName == referenceLocation.AsNode() || exportSpecifier.Name() == referenceLocation.AsNode()) {
-		panic("referenceLocation is not export specifier name or property name")
-	}
+	debug.Assert(exportSpecifier.PropertyName == referenceLocation.AsNode() || exportSpecifier.Name() == referenceLocation.AsNode(), "referenceLocation is not export specifier name or property name")
 	propertyName := exportSpecifier.PropertyName
 	if propertyName != nil {
 		// Given `export { foo as bar } [from "someModule"]`: It's an alias at `foo`, but at `bar` it's a new symbol.

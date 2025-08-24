@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
 
@@ -3154,7 +3155,7 @@ func IsTemplateLiteralToken(node *Node) bool {
 }
 
 func GetExternalModuleImportEqualsDeclarationExpression(node *Node) *Node {
-	// Debug.assert(isExternalModuleImportEqualsDeclaration(node))
+	debug.Assert(IsExternalModuleImportEqualsDeclaration(node))
 	return node.AsImportEqualsDeclaration().ModuleReference.AsExternalModuleReference().Expression
 }
 

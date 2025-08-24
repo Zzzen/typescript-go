@@ -5,6 +5,7 @@ import (
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
 
@@ -219,7 +220,7 @@ func getModuleSpecifierPreferences(
 			}
 			return []ModuleSpecifierEnding{ModuleSpecifierEndingMinimal, ModuleSpecifierEndingIndex, ModuleSpecifierEndingJsExtension}
 		default:
-			// Debug.assertNever(preferredEnding); // !!!
+			debug.AssertNever(preferredEnding)
 		}
 		return []ModuleSpecifierEnding{ModuleSpecifierEndingMinimal}
 	}

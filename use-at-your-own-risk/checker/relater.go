@@ -9,6 +9,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/binder"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/jsnum"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
@@ -4672,7 +4673,7 @@ func (r *Relater) reportRelationError(message *diagnostics.Message, source *Type
 	// to be displayed for use-cases like 'assertNever'.
 	if target.flags&TypeFlagsNever == 0 && isLiteralType(source) && !r.c.typeCouldHaveTopLevelSingletonTypes(target) {
 		generalizedSource = r.c.getBaseTypeOfLiteralType(source)
-		// Debug.assert(!c.isTypeAssignableTo(generalizedSource, target), "generalized source shouldn't be assignable")
+		debug.Assert(!r.c.isTypeAssignableTo(generalizedSource, target), "generalized source shouldn't be assignable")
 		generalizedSourceType = r.c.getTypeNameForErrorDisplay(generalizedSource)
 	}
 	// If `target` is of indexed access type (and `source` it is not), we use the object type of `target` for better error reporting
