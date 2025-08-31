@@ -994,8 +994,20 @@ func (n *Node) ModuleSpecifier() *Expression {
 		return n.AsImportDeclaration().ModuleSpecifier
 	case KindExportDeclaration:
 		return n.AsExportDeclaration().ModuleSpecifier
+	case KindJSDocImportTag:
+		return n.AsJSDocImportTag().ModuleSpecifier
 	}
 	panic("Unhandled case in Node.ModuleSpecifier: " + n.Kind.String())
+}
+
+func (n *Node) ImportClause() *Node {
+	switch n.Kind {
+	case KindImportDeclaration, KindJSImportDeclaration:
+		return n.AsImportDeclaration().ImportClause
+	case KindJSDocImportTag:
+		return n.AsJSDocImportTag().ImportClause
+	}
+	panic("Unhandled case in Node.ImportClause: " + n.Kind.String())
 }
 
 func (n *Node) Statement() *Statement {
@@ -10117,6 +10129,10 @@ func (node *JSDocCallbackTag) Clone(f NodeFactoryCoercible) *Node {
 	return cloneNode(f.AsNodeFactory().NewJSDocCallbackTag(node.TagName, node.TypeExpression, node.FullName, node.Comment), node.AsNode(), f.AsNodeFactory().hooks)
 }
 
+func IsJSDocCallbackTag(node *Node) bool {
+	return node.Kind == KindJSDocCallbackTag
+}
+
 // JSDocOverloadTag
 type JSDocOverloadTag struct {
 	JSDocTagBase
@@ -10189,6 +10205,10 @@ func (node *JSDocTypedefTag) Clone(f NodeFactoryCoercible) *Node {
 }
 
 func (node *JSDocTypedefTag) Name() *DeclarationName { return node.name }
+
+func IsJSDocTypedefTag(node *Node) bool {
+	return node.Kind == KindJSDocTypedefTag
+}
 
 // JSDocTypeLiteral
 type JSDocTypeLiteral struct {
