@@ -10,10 +10,10 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
 
-func buildInfoToSnapshot(buildInfo *BuildInfo, buildInfoFileName string, config *tsoptions.ParsedCommandLine, host compiler.CompilerHost) *snapshot {
+func buildInfoToSnapshot(buildInfo *BuildInfo, config *tsoptions.ParsedCommandLine, host compiler.CompilerHost) *snapshot {
 	to := &toSnapshot{
 		buildInfo:          buildInfo,
-		buildInfoDirectory: tspath.GetDirectoryPath(tspath.GetNormalizedAbsolutePath(buildInfoFileName, config.GetCurrentDirectory())),
+		buildInfoDirectory: tspath.GetDirectoryPath(tspath.GetNormalizedAbsolutePath(config.GetBuildInfoFileName(), config.GetCurrentDirectory())),
 		filePaths:          make([]tspath.Path, 0, len(buildInfo.FileNames)),
 		filePathSet:        make([]*collections.Set[tspath.Path], 0, len(buildInfo.FileIdsList)),
 	}

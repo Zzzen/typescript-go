@@ -5,8 +5,10 @@ import (
 	"time"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/execute/incremental"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs"
 )
 
@@ -36,7 +38,6 @@ const (
 
 type Watcher interface {
 	DoCycle()
-	GetProgram() *incremental.Program
 }
 
 type CommandLineResult struct {
@@ -46,13 +47,15 @@ type CommandLineResult struct {
 
 type CommandLineTesting interface {
 	// Ensure that all emitted files are timestamped in order to ensure they are deterministic for test baseline
-	OnEmittedFiles(result *compiler.EmitResult)
+	OnEmittedFiles(result *compiler.EmitResult, mTimesCache *collections.SyncMap[tspath.Path, time.Time])
 	OnListFilesStart(w io.Writer)
 	OnListFilesEnd(w io.Writer)
 	OnStatisticsStart(w io.Writer)
 	OnStatisticsEnd(w io.Writer)
 	OnBuildStatusReportStart(w io.Writer)
 	OnBuildStatusReportEnd(w io.Writer)
+	OnWatchStatusReportStart()
+	OnWatchStatusReportEnd()
 	GetTrace(w io.Writer) func(msg string)
 	OnProgram(program *incremental.Program)
 }

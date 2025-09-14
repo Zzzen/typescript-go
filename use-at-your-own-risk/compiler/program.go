@@ -542,13 +542,6 @@ func (p *Program) verifyCompilerOptions() {
 		}
 	}
 
-	getStrictOptionValue := func(value core.Tristate) bool {
-		if value != core.TSUnknown {
-			return value == core.TSTrue
-		}
-		return options.Strict == core.TSTrue
-	}
-
 	// Removed in TS7
 
 	if options.BaseUrl != "" {
@@ -586,10 +579,10 @@ func (p *Program) verifyCompilerOptions() {
 		createRemovedOptionDiagnostic("module", "UMD", "")
 	}
 
-	if options.StrictPropertyInitialization.IsTrue() && !getStrictOptionValue(options.StrictNullChecks) {
+	if options.StrictPropertyInitialization.IsTrue() && !options.GetStrictOptionValue(options.StrictNullChecks) {
 		createDiagnosticForOptionName(diagnostics.Option_0_cannot_be_specified_without_specifying_option_1, "strictPropertyInitialization", "strictNullChecks")
 	}
-	if options.ExactOptionalPropertyTypes.IsTrue() && !getStrictOptionValue(options.StrictNullChecks) {
+	if options.ExactOptionalPropertyTypes.IsTrue() && !options.GetStrictOptionValue(options.StrictNullChecks) {
 		createDiagnosticForOptionName(diagnostics.Option_0_cannot_be_specified_without_specifying_option_1, "exactOptionalPropertyTypes", "strictNullChecks")
 	}
 
@@ -1341,10 +1334,12 @@ type WriteFileData struct {
 	SkippedDtsWrite bool
 }
 
+type WriteFile func(fileName string, text string, writeByteOrderMark bool, data *WriteFileData) error
+
 type EmitOptions struct {
 	TargetSourceFile *ast.SourceFile // Single file to emit. If `nil`, emits all files
 	EmitOnly         EmitOnly
-	WriteFile        func(fileName string, text string, writeByteOrderMark bool, data *WriteFileData) error
+	WriteFile        WriteFile
 }
 
 type EmitResult struct {
@@ -1544,6 +1539,18 @@ func (p *Program) HasSameFileNames(other *Program) bool {
 
 func (p *Program) GetSourceFiles() []*ast.SourceFile {
 	return p.files
+}
+
+// Testing only
+func (p *Program) GetIncludeReasons() map[tspath.Path][]*fileIncludeReason {
+	return p.includeProcessor.fileIncludeReasons
+}
+
+// Testing only
+func (p *Program) IsMissingPath(path tspath.Path) bool {
+	return slices.ContainsFunc(p.missingFiles, func(missingPath string) bool {
+		return p.toPath(missingPath) == path
+	})
 }
 
 func (p *Program) ExplainFiles(w io.Writer) {
