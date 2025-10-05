@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
-	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -16,5 +15,5 @@ func TestRenameNumericalIndexSingleQuoted(t *testing.T) {
 	const content = `const foo = { [|0|]: true };
 foo[[|0|]];`
 	f := fourslash.NewFourslash(t, nil /*capabilities*/, content)
-	f.VerifyBaselineRenameAtRangesWithText(t, &ls.UserPreferences{QuotePreference: PtrTo(ls.QuotePreference("single"))}, "0")
+	f.VerifyBaselineRenameAtRangesWithText(t, &ls.UserPreferences{QuotePreference: ls.QuotePreference("single")}, "0")
 }

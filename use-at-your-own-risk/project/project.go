@@ -9,7 +9,6 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/project/ata"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/project/logging"
@@ -48,8 +47,6 @@ const (
 	PendingReloadFileNames
 	PendingReloadFull
 )
-
-var _ ls.Host = (*Project)(nil)
 
 // Project represents a TypeScript project.
 // If changing struct fields, also update the Clone method.
@@ -195,7 +192,6 @@ func (p *Project) ConfigFilePath() tspath.Path {
 	return p.configFilePath
 }
 
-// GetProgram implements ls.Host.
 func (p *Project) GetProgram() *compiler.Program {
 	return p.Program
 }

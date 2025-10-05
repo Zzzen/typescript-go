@@ -5,6 +5,7 @@ import (
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
 	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -35,6 +36,7 @@ j[|./*j*/|];`
 				&lsproto.CompletionItem{
 					Label:      "s",
 					InsertText: PtrTo("[s]"),
+					SortText:   PtrTo(string(ls.SortTextGlobalsOrKeywords)),
 					TextEdit: &lsproto.TextEditOrInsertReplaceEdit{
 						TextEdit: &lsproto.TextEdit{
 							NewText: "s",
@@ -56,6 +58,7 @@ j[|./*j*/|];`
 				&lsproto.CompletionItem{
 					Label:      "N",
 					InsertText: PtrTo("[N]"),
+					SortText:   PtrTo(string(ls.SortTextGlobalsOrKeywords)),
 					TextEdit: &lsproto.TextEditOrInsertReplaceEdit{
 						TextEdit: &lsproto.TextEdit{
 							NewText: "N",

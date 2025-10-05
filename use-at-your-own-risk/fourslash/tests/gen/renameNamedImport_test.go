@@ -3,8 +3,8 @@ package fourslash_test
 import (
 	"testing"
 
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
-	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -28,5 +28,5 @@ someExportedVariable;
 	f := fourslash.NewFourslash(t, nil /*capabilities*/, content)
 	f.GoToFile(t, "/home/src/workspaces/project/lib/index.ts")
 	f.GoToFile(t, "/home/src/workspaces/project/src/index.ts")
-	f.VerifyBaselineRename(t, &ls.UserPreferences{UseAliasesForRename: PtrTo(true)}, "i")
+	f.VerifyBaselineRename(t, &ls.UserPreferences{UseAliasesForRename: core.TSTrue}, "i")
 }
