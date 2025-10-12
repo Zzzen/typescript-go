@@ -262,6 +262,7 @@ type InferenceContext struct {
 	mapper                        *TypeMapper      // Mapper that fixes inferences
 	nonFixingMapper               *TypeMapper      // Mapper that doesn't fix inferences
 	returnMapper                  *TypeMapper      // Type mapper for inferences from return types (if any)
+	outerReturnMapper             *TypeMapper      // Type mapper for inferences from return types of outer function (if any)
 	inferredTypeParameters        []*Type          // Inferred type parameters for function result
 	intraExpressionInferenceSites []IntraExpressionInferenceSite
 }
@@ -1904,37 +1905,64 @@ func (c *Checker) isBlockScopedNameDeclaredBeforeUse(declaration *ast.Node, usag
 }
 
 func (c *Checker) isUsedInFunctionOrInstanceProperty(usage *ast.Node, declaration *ast.Node, declContainer *ast.Node) bool {
-	for current := usage; current != nil && current != declContainer; current = current.Parent {
+	return ast.FindAncestorOrQuit(usage, func(current *ast.Node) ast.FindAncestorResult {
+		if current == declContainer {
+			return ast.FindAncestorQuit
+		}
 		if ast.IsFunctionLike(current) {
-			return true
+			return ast.ToFindAncestorResult(ast.GetImmediatelyInvokedFunctionExpression(current) == nil)
 		}
 		if ast.IsClassStaticBlockDeclaration(current) {
-			return declaration.Pos() < usage.Pos()
+			return ast.ToFindAncestorResult(declaration.Pos() < usage.Pos())
 		}
-		if current.Parent != nil && ast.IsPropertyDeclaration(current.Parent) && current.Parent.Initializer() == current {
-			if ast.IsStatic(current.Parent) {
-				if ast.IsMethodDeclaration(declaration) {
-					return true
-				}
-				if ast.IsPropertyDeclaration(declaration) && ast.GetContainingClass(usage) == ast.GetContainingClass(declaration) {
-					propName := declaration.Name()
-					if ast.IsIdentifier(propName) || ast.IsPrivateIdentifier(propName) {
-						t := c.getTypeOfSymbol(c.getSymbolOfDeclaration(declaration))
-						staticBlocks := core.Filter(declaration.Parent.Members(), ast.IsClassStaticBlockDeclaration)
-						if c.isPropertyInitializedInStaticBlocks(propName, t, staticBlocks, declaration.Parent.Pos(), current.Pos()) {
-							return true
+
+		if current.Parent != nil && ast.IsPropertyDeclaration(current.Parent) {
+			propertyDeclaration := current.Parent
+			initializerOfProperty := propertyDeclaration.Initializer() == current
+			if initializerOfProperty {
+				if ast.IsStatic(current.Parent) {
+					if ast.IsMethodDeclaration(declaration) {
+						return ast.FindAncestorTrue
+					}
+					if ast.IsPropertyDeclaration(declaration) && ast.GetContainingClass(usage) == ast.GetContainingClass(declaration) {
+						propName := declaration.Name()
+						if ast.IsIdentifier(propName) || ast.IsPrivateIdentifier(propName) {
+							t := c.getTypeOfSymbol(c.getSymbolOfDeclaration(declaration))
+							staticBlocks := core.Filter(declaration.Parent.Members(), ast.IsClassStaticBlockDeclaration)
+							if c.isPropertyInitializedInStaticBlocks(propName, t, staticBlocks, declaration.Parent.Pos(), current.Pos()) {
+								return ast.FindAncestorTrue
+							}
 						}
 					}
-				}
-			} else {
-				isDeclarationInstanceProperty := ast.IsPropertyDeclaration(declaration) && !ast.IsStatic(declaration)
-				if !isDeclarationInstanceProperty || ast.GetContainingClass(usage) != ast.GetContainingClass(declaration) {
-					return true
+				} else {
+					isDeclarationInstanceProperty := ast.IsPropertyDeclaration(declaration) && !ast.IsStatic(declaration)
+					if !isDeclarationInstanceProperty || ast.GetContainingClass(usage) != ast.GetContainingClass(declaration) {
+						return ast.FindAncestorTrue
+					}
 				}
 			}
 		}
-	}
-	return false
+
+		if current.Parent != nil && ast.IsDecorator(current.Parent) {
+			decorator := current.Parent.AsDecorator()
+			if decorator.Expression == current {
+				if ast.IsParameter(decorator.Parent) {
+					if c.isUsedInFunctionOrInstanceProperty(decorator.Parent.Parent.Parent, declaration, declContainer) {
+						return ast.FindAncestorTrue
+					}
+					return ast.FindAncestorQuit
+				}
+				if ast.IsMethodDeclaration(decorator.Parent) {
+					if c.isUsedInFunctionOrInstanceProperty(decorator.Parent.Parent, declaration, declContainer) {
+						return ast.FindAncestorTrue
+					}
+					return ast.FindAncestorQuit
+				}
+			}
+		}
+
+		return ast.FindAncestorFalse
+	}) != nil
 }
 
 func isImmediatelyUsedInInitializerOfBlockScopedVariable(declaration *ast.Node, usage *ast.Node, declContainer *ast.Node) bool {
@@ -2455,7 +2483,7 @@ func (c *Checker) checkParameter(node *ast.Node) {
 	// or if its FunctionBody is strict code(11.1.5).
 	c.checkGrammarModifiers(node)
 	c.checkVariableLikeDeclaration(node)
-	fn := getContainingFunction(node)
+	fn := ast.GetContainingFunction(node)
 	var paramName string
 	if node.Name() != nil && ast.IsIdentifier(node.Name()) {
 		paramName = node.Name().Text()
@@ -4224,7 +4252,7 @@ func (c *Checker) checkBaseTypeAccessibility(t *Type, node *ast.Node) {
 	signatures := c.getSignaturesOfType(t, SignatureKindConstruct)
 	if len(signatures) != 0 {
 		declaration := signatures[0].declaration
-		if declaration != nil && HasModifier(declaration, ast.ModifierFlagsPrivate) {
+		if declaration != nil && ast.HasModifier(declaration, ast.ModifierFlagsPrivate) {
 			typeClassDeclaration := ast.GetClassLikeDeclarationOfSymbol(t.symbol)
 			if !c.isNodeWithinClass(node, typeClassDeclaration) {
 				c.error(node, diagnostics.Cannot_extend_a_class_0_Class_constructor_is_marked_as_private, c.getFullyQualifiedName(t.symbol, nil))
@@ -5153,7 +5181,7 @@ func (c *Checker) checkImportAttributes(declaration *ast.Node) {
 		return
 	}
 
-	if c.moduleKind == core.ModuleKindNodeNext && !isImportAttributes {
+	if core.ModuleKindNode20 <= c.moduleKind && c.moduleKind <= core.ModuleKindNodeNext && !isImportAttributes {
 		c.grammarErrorOnNode(node, diagnostics.Import_assertions_have_been_replaced_by_import_attributes_Use_with_instead_of_assert)
 		return
 	}
@@ -5513,7 +5541,7 @@ func (c *Checker) checkVariableLikeDeclaration(node *ast.Node) {
 	}
 	if ast.IsBindingElement(node) {
 		propName := node.PropertyName()
-		if propName != nil && ast.IsIdentifier(node.Name()) && ast.IsPartOfParameterDeclaration(node) && ast.NodeIsMissing(getContainingFunction(node).Body()) {
+		if propName != nil && ast.IsIdentifier(node.Name()) && ast.IsPartOfParameterDeclaration(node) && ast.NodeIsMissing(ast.GetContainingFunction(node).Body()) {
 			// type F = ({a: string}) => void;
 			//               ^^^^^^
 			// variable renaming in function type notation is confusing,
@@ -5548,7 +5576,7 @@ func (c *Checker) checkVariableLikeDeclaration(node *ast.Node) {
 		c.checkSourceElements(name.AsBindingPattern().Elements.Nodes)
 	}
 	// For a parameter declaration with an initializer, error and exit if the containing function doesn't have a body
-	if initializer != nil && ast.IsPartOfParameterDeclaration(node) && ast.NodeIsMissing(getContainingFunction(node).Body()) {
+	if initializer != nil && ast.IsPartOfParameterDeclaration(node) && ast.NodeIsMissing(ast.GetContainingFunction(node).Body()) {
 		c.error(node, diagnostics.A_parameter_initializer_is_only_allowed_in_a_function_or_constructor_implementation)
 		return
 	}
@@ -6479,7 +6507,7 @@ func (c *Checker) checkAliasSymbol(node *ast.Node) {
 					name := node.PropertyNameOrName().Text()
 					c.addTypeOnlyDeclarationRelatedInfo(c.error(node, message, name), core.IfElse(isType, nil, typeOnlyAlias), name)
 				}
-				if isType && node.Kind == ast.KindImportEqualsDeclaration && HasModifier(node, ast.ModifierFlagsExport) {
+				if isType && node.Kind == ast.KindImportEqualsDeclaration && ast.HasModifier(node, ast.ModifierFlagsExport) {
 					c.error(node, diagnostics.Cannot_use_export_import_on_a_type_or_type_only_namespace_when_0_is_enabled, c.getIsolatedModulesLikeFlagName())
 				}
 			case ast.KindExportSpecifier:
@@ -6767,7 +6795,7 @@ func (c *Checker) checkUnusedClassMembers(node *ast.Node) {
 				break // Already would have reported an error on the getter.
 			}
 			symbol := c.getSymbolOfDeclaration(member)
-			if !c.isReferenced(symbol) && (HasModifier(member, ast.ModifierFlagsPrivate) || member.Name() != nil && ast.IsPrivateIdentifier(member.Name())) && member.Flags&ast.NodeFlagsAmbient == 0 {
+			if !c.isReferenced(symbol) && (ast.HasModifier(member, ast.ModifierFlagsPrivate) || member.Name() != nil && ast.IsPrivateIdentifier(member.Name())) && member.Flags&ast.NodeFlagsAmbient == 0 {
 				c.reportUnused(member, UnusedKindLocal, NewDiagnosticForNode(member.Name(), diagnostics.X_0_is_declared_but_its_value_is_never_read, c.symbolToString(symbol)))
 			}
 		case ast.KindConstructor:
@@ -7015,11 +7043,13 @@ func (c *Checker) getQuickTypeOfExpression(node *ast.Node) *Type {
 		return nil
 	// Optimize for the common case of a call to a function with a single non-generic call
 	// signature where we can just fetch the return type without checking the arguments.
-	case ast.IsCallExpression(expr) && expr.Expression().Kind != ast.KindSuperKeyword && !ast.IsRequireCall(expr, true /*requireStringLiteralLikeArgument*/) && !c.isSymbolOrSymbolForCall(expr):
+	case ast.IsCallExpression(expr) && expr.Expression().Kind != ast.KindSuperKeyword && !ast.IsRequireCall(expr, true /*requireStringLiteralLikeArgument*/) && !c.isSymbolOrSymbolForCall(expr) && !ast.IsImportCall(expr):
 		if isCallChain(expr) {
 			return c.getReturnTypeOfSingleNonGenericSignatureOfCallChain(expr)
 		}
-		return c.getReturnTypeOfSingleNonGenericCallSignature(c.checkNonNullExpression(expr.Expression()))
+		return c.getReturnTypeOfSingleNonGenericSignature(c.checkNonNullExpression(expr.Expression()), SignatureKindCall)
+	case ast.IsNewExpression(expr):
+		return c.getReturnTypeOfSingleNonGenericSignature(c.checkNonNullExpression(expr.Expression()), SignatureKindConstruct)
 	case ast.IsAssertionExpression(expr) && !ast.IsConstTypeReference(expr.Type()):
 		return c.getTypeFromTypeNode(expr.Type())
 	case ast.IsLiteralExpression(node) || ast.IsBooleanLiteral(node):
@@ -7028,8 +7058,8 @@ func (c *Checker) getQuickTypeOfExpression(node *ast.Node) *Type {
 	return nil
 }
 
-func (c *Checker) getReturnTypeOfSingleNonGenericCallSignature(funcType *Type) *Type {
-	signature := c.getSingleCallSignature(funcType)
+func (c *Checker) getReturnTypeOfSingleNonGenericSignature(funcType *Type, kind SignatureKind) *Type {
+	signature := c.getSingleSignature(funcType, kind, true /*allowMembers*/)
 	if signature != nil && len(signature.typeParameters) == 0 {
 		return c.getReturnTypeOfSignature(signature)
 	}
@@ -7039,7 +7069,7 @@ func (c *Checker) getReturnTypeOfSingleNonGenericCallSignature(funcType *Type) *
 func (c *Checker) getReturnTypeOfSingleNonGenericSignatureOfCallChain(expr *ast.Node) *Type {
 	funcType := c.checkExpression(expr.Expression())
 	nonOptionalType := c.getOptionalExpressionType(funcType, expr.Expression())
-	returnType := c.getReturnTypeOfSingleNonGenericCallSignature(funcType)
+	returnType := c.getReturnTypeOfSingleNonGenericSignature(funcType, SignatureKindCall)
 	if returnType != nil {
 		return c.propagateOptionalTypeMarker(returnType, expr, nonOptionalType != funcType)
 	}
@@ -7298,7 +7328,7 @@ func (c *Checker) instantiateTypeWithSingleGenericCallSignature(node *ast.Node, 
 			if !hasOverlappingInferences(context.inferences, inferences) {
 				c.mergeInferences(context.inferences, inferences)
 				context.inferredTypeParameters = core.Concatenate(context.inferredTypeParameters, uniqueTypeParameters)
-				return c.getOrCreateTypeFromSignature(instantiatedSignature, nil)
+				return c.getOrCreateTypeFromSignature(instantiatedSignature)
 			}
 		}
 	}
@@ -7306,7 +7336,7 @@ func (c *Checker) instantiateTypeWithSingleGenericCallSignature(node *ast.Node, 
 	// and thus get different inferred types. That this is cached on the *first* such attempt is not currently an issue, since expression
 	// types *also* get cached on the first pass. If we ever properly speculate, though, the cached "isolatedSignatureType" signature
 	// field absolutely needs to be included in the list of speculative caches.
-	return c.getOrCreateTypeFromSignature(c.instantiateSignatureInContextOf(signature, contextualSignature, context, nil), c.getOuterInferenceTypeParameters())
+	return c.getOrCreateTypeFromSignature(c.instantiateSignatureInContextOf(signature, contextualSignature, context, nil))
 }
 
 func (c *Checker) getOuterInferenceTypeParameters() []*Type {
@@ -7411,7 +7441,7 @@ func (c *Checker) checkExpressionWorker(node *ast.Node, checkMode CheckMode) *Ty
 	case ast.KindElementAccessExpression:
 		return c.checkIndexedAccess(node, checkMode)
 	case ast.KindCallExpression:
-		if node.AsCallExpression().Expression.Kind == ast.KindImportKeyword {
+		if ast.IsImportCall(node) {
 			return c.checkImportCallExpression(node)
 		}
 		return c.checkCallExpression(node, checkMode)
@@ -8325,7 +8355,7 @@ func (c *Checker) resolveNewExpression(node *ast.Node, candidatesOutArray *[]*Si
 		}
 		if expressionType.symbol != nil {
 			valueDecl := ast.GetClassLikeDeclarationOfSymbol(expressionType.symbol)
-			if valueDecl != nil && HasModifier(valueDecl, ast.ModifierFlagsAbstract) {
+			if valueDecl != nil && ast.HasModifier(valueDecl, ast.ModifierFlagsAbstract) {
 				c.error(node, diagnostics.Cannot_create_an_instance_of_an_abstract_class)
 				return c.resolveErrorCall(node)
 			}
@@ -9164,7 +9194,7 @@ func (c *Checker) inferTypeArguments(node *ast.Node, signature *Signature, args 
 					contextualSignature := c.getSingleCallSignature(instantiatedType)
 					var inferenceSourceType *Type
 					if contextualSignature != nil && len(contextualSignature.typeParameters) != 0 {
-						inferenceSourceType = c.getOrCreateTypeFromSignature(c.getSignatureInstantiationWithoutFillingInTypeArguments(contextualSignature, contextualSignature.typeParameters), nil)
+						inferenceSourceType = c.getOrCreateTypeFromSignature(c.getSignatureInstantiationWithoutFillingInTypeArguments(contextualSignature, contextualSignature.typeParameters))
 					} else {
 						inferenceSourceType = instantiatedType
 					}
@@ -9175,10 +9205,14 @@ func (c *Checker) inferTypeArguments(node *ast.Node, signature *Signature, args 
 				// from the return type. We need a separate inference pass here because (a) instantiation of
 				// the source type uses the outer context's return mapper (which excludes inferences made from
 				// outer arguments), and (b) we don't want any further inferences going into this context.
+				// We use `createOuterReturnMapper` to ensure that all occurrences of outer type parameters are
+				// replaced with inferences produced from the outer return type or preceding outer arguments.
+				// This protects against circular inferences, i.e. avoiding situations where inferences reference
+				// type parameters for which the inferences are being made.
 				returnContext := c.newInferenceContext(signature.typeParameters, signature, context.flags, nil)
 				var outerReturnMapper *TypeMapper
 				if outerContext != nil {
-					outerReturnMapper = outerContext.returnMapper
+					outerReturnMapper = c.createOuterReturnMapper(outerContext)
 				}
 				returnSourceType := c.instantiateType(contextualType, outerReturnMapper)
 				c.inferTypes(returnContext.inferences, returnSourceType, inferenceTargetType, InferencePriorityNone, false)
@@ -10304,6 +10338,10 @@ func (c *Checker) checkMetaProperty(node *ast.Node) *Type {
 	case ast.KindNewKeyword:
 		return c.checkNewTargetMetaProperty(node)
 	case ast.KindImportKeyword:
+		if node.Name().Text() == "defer" {
+			debug.Assert(!ast.IsCallExpression(node.Parent) || node.Parent.AsCallExpression().Expression != node, "Trying to get the type of `import.defer` in `import.defer(...)`")
+			return c.errorType
+		}
 		return c.checkImportMetaProperty(node)
 	}
 	panic("Unhandled case in checkMetaProperty")
@@ -10495,7 +10533,7 @@ func (c *Checker) checkSpreadExpression(node *ast.Node, checkMode CheckMode) *Ty
 
 func (c *Checker) checkYieldExpression(node *ast.Node) *Type {
 	c.checkGrammarYieldExpression(node)
-	fn := getContainingFunction(node)
+	fn := ast.GetContainingFunction(node)
 	if fn == nil {
 		return c.anyType
 	}
@@ -10583,7 +10621,7 @@ func (c *Checker) checkIdentifier(node *ast.Node, checkMode CheckMode) *Type {
 		return c.errorType
 	}
 	if symbol == c.argumentsSymbol {
-		if c.isInPropertyInitializerOrClassStaticBlock(node) {
+		if c.isInPropertyInitializerOrClassStaticBlock(node, true /*ignoreArrowFunctions*/) {
 			c.error(node, diagnostics.X_arguments_cannot_be_referenced_in_property_initializers_or_class_static_initialization_blocks)
 			return c.errorType
 		}
@@ -11215,7 +11253,7 @@ func (c *Checker) checkPropertyNotUsedBeforeDeclaration(prop *ast.Symbol, node *
 	}
 	var diagnostic *ast.Diagnostic
 	declarationName := right.Text()
-	if c.isInPropertyInitializerOrClassStaticBlock(node) &&
+	if c.isInPropertyInitializerOrClassStaticBlock(node, false /*ignoreArrowFunctions*/) &&
 		!c.isOptionalPropertyDeclaration(valueDeclaration) &&
 		!(ast.IsAccessExpression(node) && ast.IsAccessExpression(node.Expression())) &&
 		!c.isBlockScopedNameDeclaredBeforeUse(valueDeclaration, right) &&
@@ -12400,23 +12438,49 @@ func (c *Checker) getSyntacticTruthySemantics(node *ast.Node) PredicateSemantics
 }
 
 func (c *Checker) checkNullishCoalesceOperands(left *ast.Node, right *ast.Node) {
-	if ast.IsBinaryExpression(left) && ast.IsLogicalBinaryOperator(left.AsBinaryExpression().OperatorToken.Kind) {
-		c.grammarErrorOnNode(left, diagnostics.X_0_and_1_operations_cannot_be_mixed_without_parentheses, scanner.TokenToString(left.AsBinaryExpression().OperatorToken.Kind), scanner.TokenToString(ast.KindQuestionQuestionToken))
+	if ast.IsBinaryExpression(left.Parent.Parent) {
+		grandparentLeft := left.Parent.Parent.AsBinaryExpression().Left
+		grandparentOperatorToken := left.Parent.Parent.AsBinaryExpression().OperatorToken
+		if ast.IsBinaryExpression(grandparentLeft) && grandparentOperatorToken.Kind == ast.KindBarBarToken {
+			c.grammarErrorOnNode(grandparentLeft, diagnostics.X_0_and_1_operations_cannot_be_mixed_without_parentheses, scanner.TokenToString(ast.KindQuestionQuestionToken), scanner.TokenToString(grandparentOperatorToken.Kind))
+		}
+	} else if ast.IsBinaryExpression(left) {
+		operatorToken := left.AsBinaryExpression().OperatorToken
+		if operatorToken.Kind == ast.KindBarBarToken || operatorToken.Kind == ast.KindAmpersandAmpersandToken {
+			c.grammarErrorOnNode(left, diagnostics.X_0_and_1_operations_cannot_be_mixed_without_parentheses, scanner.TokenToString(operatorToken.Kind), scanner.TokenToString(ast.KindQuestionQuestionToken))
+		}
+	} else if ast.IsBinaryExpression(right) {
+		operatorToken := right.AsBinaryExpression().OperatorToken
+		if operatorToken.Kind == ast.KindAmpersandAmpersandToken {
+			c.grammarErrorOnNode(right, diagnostics.X_0_and_1_operations_cannot_be_mixed_without_parentheses, scanner.TokenToString(ast.KindQuestionQuestionToken), scanner.TokenToString(operatorToken.Kind))
+		}
 	}
-	if ast.IsBinaryExpression(right) && ast.IsLogicalBinaryOperator(right.AsBinaryExpression().OperatorToken.Kind) {
-		c.grammarErrorOnNode(right, diagnostics.X_0_and_1_operations_cannot_be_mixed_without_parentheses, scanner.TokenToString(right.AsBinaryExpression().OperatorToken.Kind), scanner.TokenToString(ast.KindQuestionQuestionToken))
-	}
+	c.checkNullishCoalesceOperandLeft(left)
+	c.checkNullishCoalesceOperandRight(right)
+}
+
+func (c *Checker) checkNullishCoalesceOperandLeft(left *ast.Node) {
 	leftTarget := ast.SkipOuterExpressions(left, ast.OEKAll)
 	nullishSemantics := c.getSyntacticNullishnessSemantics(leftTarget)
 	if nullishSemantics != PredicateSemanticsSometimes {
-		if left.Parent.Parent.Kind == ast.KindBinaryExpression {
-			c.error(leftTarget, diagnostics.This_binary_expression_is_never_nullish_Are_you_missing_parentheses)
+		if nullishSemantics == PredicateSemanticsAlways {
+			c.error(leftTarget, diagnostics.This_expression_is_always_nullish)
 		} else {
-			if nullishSemantics == PredicateSemanticsAlways {
-				c.error(leftTarget, diagnostics.This_expression_is_always_nullish)
-			} else {
-				c.error(leftTarget, diagnostics.Right_operand_of_is_unreachable_because_the_left_operand_is_never_nullish)
-			}
+			c.error(leftTarget, diagnostics.Right_operand_of_is_unreachable_because_the_left_operand_is_never_nullish)
+		}
+	}
+}
+
+func (c *Checker) checkNullishCoalesceOperandRight(right *ast.Node) {
+	binaryExpression := right.Parent
+	if binaryExpression.Parent != nil && ast.IsBinaryExpression(binaryExpression.Parent) && binaryExpression.Parent.AsBinaryExpression().OperatorToken.Kind == ast.KindQuestionQuestionToken {
+		rightTarget := ast.SkipOuterExpressions(right, ast.OEKAll)
+		nullishSemantics := c.getSyntacticNullishnessSemantics(rightTarget)
+		switch nullishSemantics {
+		case PredicateSemanticsAlways:
+			c.error(rightTarget, diagnostics.This_expression_is_always_nullish)
+		case PredicateSemanticsNever:
+			c.error(rightTarget, diagnostics.This_expression_is_never_nullish)
 		}
 	}
 }
@@ -13136,25 +13200,19 @@ func (c *Checker) checkShorthandPropertyAssignment(node *ast.Node, inDestructuri
 	return expressionType
 }
 
-func (c *Checker) isInPropertyInitializerOrClassStaticBlock(node *ast.Node) bool {
+func (c *Checker) isInPropertyInitializerOrClassStaticBlock(node *ast.Node, ignoreArrowFunctions bool) bool {
 	return ast.FindAncestorOrQuit(node, func(node *ast.Node) ast.FindAncestorResult {
 		switch node.Kind {
-		case ast.KindPropertyDeclaration:
+		case ast.KindPropertyDeclaration, ast.KindClassStaticBlockDeclaration:
 			return ast.FindAncestorTrue
-		case ast.KindPropertyAssignment, ast.KindMethodDeclaration, ast.KindGetAccessor, ast.KindSetAccessor, ast.KindSpreadAssignment,
-			ast.KindComputedPropertyName, ast.KindTemplateSpan, ast.KindJsxExpression, ast.KindJsxAttribute, ast.KindJsxAttributes,
-			ast.KindJsxSpreadAttribute, ast.KindJsxOpeningElement, ast.KindExpressionWithTypeArguments, ast.KindHeritageClause:
-			return ast.FindAncestorFalse
-		case ast.KindArrowFunction, ast.KindExpressionStatement:
-			if ast.IsBlock(node.Parent) && ast.IsClassStaticBlockDeclaration(node.Parent.Parent) {
-				return ast.FindAncestorTrue
-			}
+		case ast.KindTypeQuery, ast.KindJsxClosingElement:
 			return ast.FindAncestorQuit
+		case ast.KindArrowFunction:
+			return core.IfElse(ignoreArrowFunctions, ast.FindAncestorFalse, ast.FindAncestorQuit)
+		case ast.KindBlock:
+			return core.IfElse(ast.IsFunctionLikeDeclaration(node.Parent) && node.Parent.Kind != ast.KindArrowFunction, ast.FindAncestorQuit, ast.FindAncestorFalse)
 		default:
-			if ast.IsExpressionNode(node) {
-				return ast.FindAncestorFalse
-			}
-			return ast.FindAncestorQuit
+			return ast.FindAncestorFalse
 		}
 	}) != nil
 }
@@ -13857,6 +13915,12 @@ func (c *Checker) getTargetOfImportEqualsDeclaration(node *ast.Node, dontResolve
 		}
 		immediate := c.resolveExternalModuleName(node, moduleReference, false /*ignoreErrors*/)
 		resolved := c.resolveExternalModuleSymbol(immediate, false /*dontResolveAlias*/)
+		if resolved != nil && core.ModuleKindNode20 <= c.moduleKind && c.moduleKind <= core.ModuleKindNodeNext {
+			moduleExports := c.getExportOfModule(resolved, ast.InternalSymbolNameModuleExports, node, dontResolveAlias)
+			if moduleExports != nil {
+				return moduleExports
+			}
+		}
 		c.markSymbolOfAliasDeclarationIfTypeOnly(node, immediate, resolved, false /*overwriteEmpty*/, nil, "")
 		return resolved
 	}
@@ -13926,14 +13990,42 @@ func (c *Checker) getTargetOfImportClause(node *ast.Node, dontResolveAlias bool)
 }
 
 func (c *Checker) getTargetOfModuleDefault(moduleSymbol *ast.Symbol, node *ast.Node, dontResolveAlias bool) *ast.Symbol {
+	file := core.Find(moduleSymbol.Declarations, ast.IsSourceFile)
+	specifier := c.getModuleSpecifierForImportOrExport(node)
 	var exportDefaultSymbol *ast.Symbol
+	var exportModuleDotExportsSymbol *ast.Symbol
 	if isShorthandAmbientModuleSymbol(moduleSymbol) {
-		exportDefaultSymbol = moduleSymbol
+		// !!! exportDefaultSymbol = moduleSymbol
+		// Does nothing?
+	} else if file != nil && specifier != nil &&
+		core.ModuleKindNode20 <= c.moduleKind && c.moduleKind <= core.ModuleKindNodeNext &&
+		c.getEmitSyntaxForModuleSpecifierExpression(specifier) == core.ModuleKindCommonJS &&
+		c.program.GetImpliedNodeFormatForEmit(file.AsSourceFile()) == core.ModuleKindESNext {
+		exportModuleDotExportsSymbol = c.resolveExportByName(moduleSymbol, ast.InternalSymbolNameModuleExports, node, dontResolveAlias)
+	}
+	if exportModuleDotExportsSymbol != nil {
+		// We have a transpiled default import where the `require` resolves to an ES module with a `module.exports` named
+		// export. If `esModuleInterop` is enabled, this will work:
+		//
+		// const dep_1 = __importDefault(require("./dep.mjs")); // wraps like { default: require("./dep.mjs") }
+		// dep_1.default; // require("./dep.mjs") -> the `module.exports` export value
+		//
+		// But without `esModuleInterop`, it will be broken:
+		//
+		// const dep_1 = require("./dep.mjs"); // the `module.exports` export value (could be primitive)
+		// dep_1.default; // `default` property access on the `module.exports` export value
+		//
+		// We could try to resolve the 'default' property in the latter case, but it's a mistake to run in this
+		// environment without `esModuleInterop`, so just error.
+		if !c.compilerOptions.GetESModuleInterop() {
+			c.error(node.Name(), diagnostics.Module_0_can_only_be_default_imported_using_the_1_flag, c.symbolToString(moduleSymbol), "esModuleInterop")
+			return nil
+		}
+		c.markSymbolOfAliasDeclarationIfTypeOnly(node, exportModuleDotExportsSymbol /*finalTarget*/, nil /*overwriteEmpty*/, false, nil, "")
+		return exportModuleDotExportsSymbol
 	} else {
 		exportDefaultSymbol = c.resolveExportByName(moduleSymbol, ast.InternalSymbolNameDefault, node, dontResolveAlias)
 	}
-	file := core.Find(moduleSymbol.Declarations, ast.IsSourceFile)
-	specifier := c.getModuleSpecifierForImportOrExport(node)
 	if specifier == nil {
 		return exportDefaultSymbol
 	}
@@ -14915,7 +15007,11 @@ func (c *Checker) resolveESModuleSymbol(moduleSymbol *ast.Symbol, referencingLoc
 			return symbol
 		}
 		referenceParent := referencingLocation.Parent
-		if ast.IsImportDeclaration(referenceParent) && ast.GetNamespaceDeclarationNode(referenceParent) != nil || ast.IsImportCall(referenceParent) {
+		var namespaceImport *ast.Node
+		if ast.IsImportDeclaration(referenceParent) {
+			namespaceImport = ast.GetNamespaceDeclarationNode(referenceParent)
+		}
+		if namespaceImport != nil || ast.IsImportCall(referenceParent) {
 			var reference *ast.Node
 			if ast.IsImportCall(referenceParent) {
 				reference = referenceParent.AsCallExpression().Arguments.Nodes[0]
@@ -14927,27 +15023,49 @@ func (c *Checker) resolveESModuleSymbol(moduleSymbol *ast.Symbol, referencingLoc
 			if defaultOnlyType != nil {
 				return c.cloneTypeAsModuleType(symbol, defaultOnlyType, referenceParent)
 			}
-			// !!!
-			// targetFile := moduleSymbol. /* ? */ declarations. /* ? */ find(isSourceFile)
-			// isEsmCjsRef := targetFile && c.isESMFormatImportImportingCommonjsFormatFile(c.getEmitSyntaxForModuleSpecifierExpression(reference), host.getImpliedNodeFormatForEmit(targetFile))
-			// if c.compilerOptions.GetESModuleInterop() || isEsmCjsRef {
-			// 	sigs := c.getSignaturesOfStructuredType(type_, SignatureKindCall)
-			// 	if !sigs || !sigs.length {
-			// 		sigs = c.getSignaturesOfStructuredType(type_, SignatureKindConstruct)
-			// 	}
-			// 	if (sigs && sigs.length) || c.getPropertyOfType(type_, ast.InternalSymbolNameDefault /*skipObjectFunctionPropertyAugment*/, true) || isEsmCjsRef {
-			// 		var moduleType *Type
-			// 		if type_.flags & TypeFlagsStructuredType {
-			// 			moduleType = c.getTypeWithSyntheticDefaultImportType(type_, symbol, moduleSymbol, reference)
-			// 		} else {
-			// 			moduleType = c.createDefaultPropertyWrapperForModule(symbol, symbol.parent)
-			// 		}
-			// 		return c.cloneTypeAsModuleType(symbol, moduleType, referenceParent)
-			// 	}
-			// }
+
+			targetFile := core.Find(moduleSymbol.Declarations, ast.IsSourceFile)
+			usageMode := c.getEmitSyntaxForModuleSpecifierExpression(reference)
+			var exportModuleDotExportsSymbol *ast.Symbol
+			if namespaceImport != nil && targetFile != nil &&
+				core.ModuleKindNode20 <= c.moduleKind && c.moduleKind <= core.ModuleKindNodeNext &&
+				usageMode == core.ModuleKindCommonJS &&
+				c.program.GetImpliedNodeFormatForEmit(targetFile.AsSourceFile()) == core.ModuleKindESNext {
+				exportModuleDotExportsSymbol = c.getExportOfModule(symbol, ast.InternalSymbolNameModuleExports, namespaceImport, dontResolveAlias)
+			}
+			if exportModuleDotExportsSymbol != nil {
+				if !suppressInteropError && symbol.Flags&(ast.SymbolFlagsModule|ast.SymbolFlagsVariable) == 0 {
+					c.error(referencingLocation, diagnostics.This_module_can_only_be_referenced_with_ECMAScript_imports_Slashexports_by_turning_on_the_0_flag_and_referencing_its_default_export, "esModuleInterop")
+				}
+				if c.compilerOptions.GetESModuleInterop() && c.hasSignatures(typ) {
+					return c.cloneTypeAsModuleType(exportModuleDotExportsSymbol, typ, referenceParent)
+				}
+				return exportModuleDotExportsSymbol
+			}
+
+			isEsmCjsRef := targetFile != nil && isESMFormatImportImportingCommonjsFormatFile(usageMode, c.program.GetImpliedNodeFormatForEmit(targetFile.AsSourceFile()))
+			if c.compilerOptions.GetESModuleInterop() || isEsmCjsRef {
+				if c.hasSignatures(typ) || c.getPropertyOfTypeEx(typ, ast.InternalSymbolNameDefault, true /*skipObjectFunctionPropertyAugment*/, false /*includeTypeOnlyMembers*/) != nil || isEsmCjsRef {
+					var moduleType *Type
+					if typ.Flags()&TypeFlagsStructuredType != 0 {
+						moduleType = c.getTypeWithSyntheticDefaultImportType(typ, symbol, moduleSymbol, reference)
+					} else {
+						moduleType = c.createDefaultPropertyWrapperForModule(symbol, symbol.Parent, nil)
+					}
+					return c.cloneTypeAsModuleType(symbol, moduleType, referenceParent)
+				}
+			}
 		}
 	}
 	return symbol
+}
+
+func (c *Checker) hasSignatures(t *Type) bool {
+	return len(c.getSignaturesOfStructuredType(t, SignatureKindCall)) > 0 || len(c.getSignaturesOfStructuredType(t, SignatureKindConstruct)) > 0
+}
+
+func isESMFormatImportImportingCommonjsFormatFile(usageMode core.ResolutionMode, targetMode core.ResolutionMode) bool {
+	return usageMode == core.ModuleKindESNext && targetMode == core.ModuleKindCommonJS
 }
 
 func (c *Checker) getTypeWithSyntheticDefaultOnly(t *Type, symbol *ast.Symbol, originalSymbol *ast.Symbol, moduleSpecifier *ast.Node) *Type {
@@ -16333,6 +16451,10 @@ func (c *Checker) hasNonCircularBaseConstraint(t *Type) bool {
 
 // This is a worker function. Use getConstraintOfTypeParameter which guards against circular constraints
 func (c *Checker) getConstraintFromTypeParameter(t *Type) *Type {
+	if t.flags&TypeFlagsTypeParameter == 0 {
+		return nil
+	}
+
 	tp := t.AsTypeParameter()
 	if tp.constraint == nil {
 		var constraint *Type
@@ -18452,8 +18574,10 @@ func (c *Checker) getSignatureInstantiation(sig *Signature, typeArguments []*Typ
 		if returnSignature != nil {
 			newReturnSignature := c.cloneSignature(returnSignature)
 			newReturnSignature.typeParameters = inferredTypeParameters
+			newReturnType := c.getOrCreateTypeFromSignature(newReturnSignature)
+			newReturnType.AsObjectType().mapper = instantiatedSignature.mapper
 			newInstantiatedSignature := c.cloneSignature(instantiatedSignature)
-			newInstantiatedSignature.resolvedReturnType = c.getOrCreateTypeFromSignature(newReturnSignature, nil)
+			newInstantiatedSignature.resolvedReturnType = newReturnType
 			return newInstantiatedSignature
 		}
 	}
@@ -18518,7 +18642,7 @@ func (c *Checker) getSingleSignature(t *Type, kind SignatureKind, allowMembers b
 	return nil
 }
 
-func (c *Checker) getOrCreateTypeFromSignature(sig *Signature, outerTypeParameters []*Type) *Type {
+func (c *Checker) getOrCreateTypeFromSignature(sig *Signature) *Type {
 	// There are two ways to declare a construct signature, one is by declaring a class constructor
 	// using the constructor keyword, and the other is declaring a bare construct signature in an
 	// object type literal or interface (using the new keyword). Each way of declaring a constructor
@@ -18530,17 +18654,12 @@ func (c *Checker) getOrCreateTypeFromSignature(sig *Signature, outerTypeParamete
 		}
 		// If declaration is undefined, it is likely to be the signature of the default constructor.
 		isConstructor := kind == ast.KindUnknown || kind == ast.KindConstructor || kind == ast.KindConstructSignature || kind == ast.KindConstructorType
-		// The type must have a symbol with a `Function` flag and a declaration in order to be correctly flagged as possibly containing
-		// type variables by `couldContainTypeVariables`
-		t := c.newObjectType(ObjectFlagsAnonymous|ObjectFlagsSingleSignatureType, c.newSymbol(ast.SymbolFlagsFunction, ast.InternalSymbolNameFunction))
-		if sig.declaration != nil && !ast.NodeIsSynthesized(sig.declaration) {
-			t.symbol.Declarations = []*ast.Node{sig.declaration}
-			t.symbol.ValueDeclaration = sig.declaration
+
+		var symbol *ast.Symbol
+		if sig.declaration != nil {
+			symbol = sig.declaration.Symbol()
 		}
-		if outerTypeParameters == nil && sig.declaration != nil {
-			outerTypeParameters = c.getOuterTypeParameters(sig.declaration, true /*includeThisTypes*/)
-		}
-		t.AsSingleSignatureType().outerTypeParameters = outerTypeParameters
+		t := c.newObjectType(ObjectFlagsAnonymous|ObjectFlagsSingleSignatureType, symbol)
 		if isConstructor {
 			c.setStructuredTypeMembers(t, nil, nil, []*Signature{sig}, nil)
 		} else {
@@ -18811,7 +18930,7 @@ func (c *Checker) getIndexInfosOfIndexSymbol(indexSymbol *ast.Symbol, siblingSym
 					}
 					forEachType(c.getTypeFromTypeNode(typeNode), func(keyType *Type) {
 						if c.isValidIndexKeyType(keyType) && findIndexInfo(indexInfos, keyType) == nil {
-							indexInfo := c.newIndexInfo(keyType, valueType, HasModifier(declaration, ast.ModifierFlagsReadonly), declaration, nil)
+							indexInfo := c.newIndexInfo(keyType, valueType, ast.HasModifier(declaration, ast.ModifierFlagsReadonly), declaration, nil)
 							indexInfos = append(indexInfos, indexInfo)
 						}
 					})
@@ -21197,6 +21316,9 @@ func (c *Checker) getDefaultTypeArgumentType(isInJavaScriptFile bool) *Type {
 // this gets the instantiated default type of its target. If the type parameter has no default type or
 // the default is circular, `undefined` is returned.
 func (c *Checker) getDefaultFromTypeParameter(t *Type) *Type {
+	if t.flags&TypeFlagsTypeParameter == 0 {
+		return nil
+	}
 	defaultType := c.getResolvedTypeParameterDefault(t)
 	if defaultType != c.noConstraintType && defaultType != c.circularConstraintType {
 		return defaultType
@@ -21364,7 +21486,6 @@ func (c *Checker) couldContainTypeVariablesWorker(t *Type) bool {
 	}
 	result := t.flags&TypeFlagsInstantiable != 0 ||
 		t.flags&TypeFlagsObject != 0 && !c.isNonGenericTopLevelType(t) && (objectFlags&ObjectFlagsReference != 0 && (t.AsTypeReference().node != nil || core.Some(c.getTypeArguments(t), c.couldContainTypeVariables)) ||
-			objectFlags&ObjectFlagsSingleSignatureType != 0 && len(t.AsSingleSignatureType().outerTypeParameters) != 0 ||
 			objectFlags&ObjectFlagsAnonymous != 0 && t.symbol != nil && t.symbol.Flags&(ast.SymbolFlagsFunction|ast.SymbolFlagsMethod|ast.SymbolFlagsClass|ast.SymbolFlagsTypeLiteral|ast.SymbolFlagsObjectLiteral) != 0 && t.symbol.Declarations != nil ||
 			objectFlags&(ObjectFlagsMapped|ObjectFlagsReverseMapped|ObjectFlagsObjectRestType|ObjectFlagsInstantiationExpressionType) != 0) ||
 		t.flags&TypeFlagsUnionOrIntersection != 0 && t.flags&TypeFlagsEnumLiteral == 0 && !c.isNonGenericTopLevelType(t) && core.Some(t.Types(), c.couldContainTypeVariables)
@@ -21471,9 +21592,8 @@ func (c *Checker) instantiateTypeWorker(t *Type, m *TypeMapper, alias *TypeAlias
 }
 
 // Handles instantiation of the following object types:
-// AnonymousType (ObjectFlagsAnonymous)
+// AnonymousType (ObjectFlagsAnonymous|ObjectFlagsSingleSignatureType)
 // TypeReference with node != nil (ObjectFlagsReference)
-// SingleSignatureType (ObjectFlagsSingleSignatureType)
 // InstantiationExpressionType (ObjectFlagsInstantiationExpressionType)
 // MappedType (ObjectFlagsMapped)
 func (c *Checker) getObjectTypeInstantiation(t *Type, m *TypeMapper, alias *TypeAlias) *Type {
@@ -21497,34 +21617,30 @@ func (c *Checker) getObjectTypeInstantiation(t *Type, m *TypeMapper, alias *Type
 	default:
 		target = t
 	}
-	if t.objectFlags&ObjectFlagsSingleSignatureType != 0 {
-		typeParameters = t.AsSingleSignatureType().outerTypeParameters
-	} else {
-		typeParameters = links.outerTypeParameters
-		if typeParameters == nil {
-			// The first time an anonymous type is instantiated we compute and store a list of the type
-			// parameters that are in scope (and therefore potentially referenced). For type literals that
-			// aren't the right hand side of a generic type alias declaration we optimize by reducing the
-			// set of type parameters to those that are possibly referenced in the literal.
-			typeParameters = c.getOuterTypeParameters(declaration, true /*includeThisTypes*/)
-			if len(target.alias.TypeArguments()) == 0 {
-				if t.objectFlags&(ObjectFlagsReference|ObjectFlagsInstantiationExpressionType) != 0 {
-					typeParameters = core.Filter(typeParameters, func(tp *Type) bool {
-						return c.isTypeParameterPossiblyReferenced(tp, declaration)
+	typeParameters = links.outerTypeParameters
+	if typeParameters == nil {
+		// The first time an anonymous type is instantiated we compute and store a list of the type
+		// parameters that are in scope (and therefore potentially referenced). For type literals that
+		// aren't the right hand side of a generic type alias declaration we optimize by reducing the
+		// set of type parameters to those that are possibly referenced in the literal.
+		typeParameters = c.getOuterTypeParameters(declaration, true /*includeThisTypes*/)
+		if len(target.alias.TypeArguments()) == 0 {
+			if t.objectFlags&(ObjectFlagsReference|ObjectFlagsInstantiationExpressionType) != 0 {
+				typeParameters = core.Filter(typeParameters, func(tp *Type) bool {
+					return c.isTypeParameterPossiblyReferenced(tp, declaration)
+				})
+			} else if target.symbol.Flags&(ast.SymbolFlagsMethod|ast.SymbolFlagsTypeLiteral) != 0 {
+				typeParameters = core.Filter(typeParameters, func(tp *Type) bool {
+					return core.Some(t.symbol.Declarations, func(d *ast.Node) bool {
+						return c.isTypeParameterPossiblyReferenced(tp, d)
 					})
-				} else if target.symbol.Flags&(ast.SymbolFlagsMethod|ast.SymbolFlagsTypeLiteral) != 0 {
-					typeParameters = core.Filter(typeParameters, func(tp *Type) bool {
-						return core.Some(t.symbol.Declarations, func(d *ast.Node) bool {
-							return c.isTypeParameterPossiblyReferenced(tp, d)
-						})
-					})
-				}
+				})
 			}
-			if typeParameters == nil {
-				typeParameters = []*Type{}
-			}
-			links.outerTypeParameters = typeParameters
 		}
+		if typeParameters == nil {
+			typeParameters = []*Type{}
+		}
+		links.outerTypeParameters = typeParameters
 	}
 	if len(typeParameters) == 0 {
 		return t
@@ -21549,12 +21665,10 @@ func (c *Checker) getObjectTypeInstantiation(t *Type, m *TypeMapper, alias *Type
 	}
 	result := data.instantiations[key]
 	if result == nil {
-		if t.objectFlags&ObjectFlagsSingleSignatureType != 0 {
-			result = c.instantiateAnonymousType(t, m, nil /*alias*/)
-			data.instantiations[key] = result
-			return result
-		}
 		newMapper := newTypeMapper(typeParameters, typeArguments)
+		if target.objectFlags&ObjectFlagsSingleSignatureType != 0 && m != nil {
+			newMapper = c.combineTypeMappers(newMapper, m)
+		}
 		switch {
 		case target.objectFlags&ObjectFlagsReference != 0:
 			result = c.createDeferredTypeReference(t.Target(), t.AsTypeReference().node, newMapper, newAlias)
@@ -21650,8 +21764,6 @@ func (c *Checker) instantiateAnonymousType(t *Type, m *TypeMapper, alias *TypeAl
 		freshTypeParameter.AsTypeParameter().mapper = m
 	case t.objectFlags&ObjectFlagsInstantiationExpressionType != 0:
 		result.AsInstantiationExpressionType().node = t.AsInstantiationExpressionType().node
-	case t.objectFlags&ObjectFlagsSingleSignatureType != 0:
-		result.AsSingleSignatureType().outerTypeParameters = t.AsSingleSignatureType().outerTypeParameters
 	}
 	if alias == nil {
 		alias = c.instantiateTypeAlias(t.alias, m)
@@ -22781,7 +22893,7 @@ func (c *Checker) getTypeAliasInstantiation(symbol *ast.Symbol, typeArguments []
 
 func isLocalTypeAlias(symbol *ast.Symbol) bool {
 	declaration := core.Find(symbol.Declarations, isTypeAlias)
-	return declaration != nil && getContainingFunction(declaration) != nil
+	return declaration != nil && ast.GetContainingFunction(declaration) != nil
 }
 
 func (c *Checker) getDeclaredTypeOfSymbol(symbol *ast.Symbol) *Type {
@@ -24177,8 +24289,6 @@ func (c *Checker) newObjectType(objectFlags ObjectFlags, symbol *ast.Symbol) *Ty
 		data = &EvolvingArrayType{}
 	case objectFlags&ObjectFlagsInstantiationExpressionType != 0:
 		data = &InstantiationExpressionType{}
-	case objectFlags&ObjectFlagsSingleSignatureType != 0:
-		data = &SingleSignatureType{}
 	case objectFlags&ObjectFlagsAnonymous != 0:
 		data = &ObjectType{}
 	default:
@@ -26731,7 +26841,7 @@ func (c *Checker) markPropertyAsReferenced(prop *ast.Symbol, nodeForCheckWriteOn
 	if prop.Flags&ast.SymbolFlagsClassMember == 0 || prop.ValueDeclaration == nil {
 		return
 	}
-	hasPrivateModifier := HasModifier(prop.ValueDeclaration, ast.ModifierFlagsPrivate)
+	hasPrivateModifier := ast.HasModifier(prop.ValueDeclaration, ast.ModifierFlagsPrivate)
 	hasPrivateIdentifier := prop.ValueDeclaration.Name() != nil && ast.IsPrivateIdentifier(prop.ValueDeclaration.Name())
 	if !hasPrivateModifier && !hasPrivateIdentifier {
 		return
@@ -28285,7 +28395,7 @@ func (c *Checker) getContextualTypeForStaticPropertyDeclaration(declaration *ast
 }
 
 func (c *Checker) getContextualTypeForReturnExpression(node *ast.Node, contextFlags ContextFlags) *Type {
-	fn := getContainingFunction(node)
+	fn := ast.GetContainingFunction(node)
 	if fn != nil {
 		contextualReturnType := c.getContextualReturnType(fn, contextFlags)
 		if contextualReturnType != nil {
@@ -28380,7 +28490,7 @@ func (c *Checker) getContextualSignatureForFunctionLikeDeclaration(node *ast.Nod
 }
 
 func (c *Checker) getContextualTypeForYieldOperand(node *ast.Node, contextFlags ContextFlags) *Type {
-	fn := getContainingFunction(node)
+	fn := ast.GetContainingFunction(node)
 	if fn != nil {
 		functionFlags := getFunctionFlags(fn)
 		contextualReturnType := c.getContextualReturnType(fn, contextFlags)
@@ -28464,7 +28574,7 @@ func (c *Checker) getContextualTypeForArgumentAtIndex(callTarget *ast.Node, argI
 func (c *Checker) getContextualTypeForDecorator(decorator *ast.Node) *Type {
 	signature := c.getDecoratorCallSignature(decorator)
 	if signature != nil {
-		return c.getOrCreateTypeFromSignature(signature, nil)
+		return c.getOrCreateTypeFromSignature(signature)
 	}
 	return nil
 }
@@ -28994,7 +29104,7 @@ func (c *Checker) getESDecoratorCallSignature(decorator *ast.Node) *Signature {
 			// instance, depending on whether the member was `static`.
 			var valueType *Type
 			if ast.IsMethodDeclaration(node) {
-				valueType = c.getOrCreateTypeFromSignature(c.getSignatureFromDeclaration(node), nil)
+				valueType = c.getOrCreateTypeFromSignature(c.getSignatureFromDeclaration(node))
 			} else {
 				valueType = c.getTypeOfNode(node)
 			}
@@ -29161,7 +29271,7 @@ func (c *Checker) newESDecoratorCallSignature(targetType *Type, contextType *Typ
 // Creates a synthetic `FunctionType`
 func (c *Checker) newFunctionType(typeParameters []*Type, thisParameter *ast.Symbol, parameters []*ast.Symbol, returnType *Type) *Type {
 	signature := c.newCallSignature(typeParameters, thisParameter, parameters, returnType)
-	return c.getOrCreateTypeFromSignature(signature, nil)
+	return c.getOrCreateTypeFromSignature(signature)
 }
 
 func (c *Checker) newGetterFunctionType(t *Type) *Type {
@@ -30372,7 +30482,12 @@ func (c *Checker) getSymbolAtLocation(node *ast.Node, ignoreErrors bool) *ast.Sy
 			return parent.Symbol()
 		}
 		return nil
-	case ast.KindImportKeyword, ast.KindNewKeyword:
+	case ast.KindImportKeyword:
+		if ast.IsMetaProperty(node.Parent) && node.Parent.Text() == "defer" {
+			return nil
+		}
+		fallthrough
+	case ast.KindNewKeyword:
 		if ast.IsMetaProperty(parent) {
 			return c.checkMetaPropertyKeyword(parent).symbol
 		}
