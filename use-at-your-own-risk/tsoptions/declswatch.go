@@ -5,7 +5,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 )
 
-var optionsForWatch = []*CommandLineOption{
+var OptionsForWatch = []*CommandLineOption{
 	{
 		Name:     "watchInterval",
 		Kind:     CommandLineOptionTypeNumber,
