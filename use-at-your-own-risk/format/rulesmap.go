@@ -8,7 +8,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 )
 
-func getRules(context *formattingContext, rules []*ruleImpl) []*ruleImpl {
+func getRules(context *FormattingContext, rules []*ruleImpl) []*ruleImpl {
 	bucket := getRulesMap()[getRuleBucketIndex(context.currentTokenSpan.Kind, context.nextTokenSpan.Kind)]
 	if len(bucket) > 0 {
 		ruleActionMask := ruleActionNone

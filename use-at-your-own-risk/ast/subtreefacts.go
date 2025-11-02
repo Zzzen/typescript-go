@@ -4,7 +4,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 )
 
-type SubtreeFacts int32
+type SubtreeFacts uint32
 
 const (
 	// Facts

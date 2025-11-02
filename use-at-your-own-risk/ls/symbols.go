@@ -11,6 +11,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsconv"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
@@ -195,7 +196,7 @@ type DeclarationInfo struct {
 	matchScore  int
 }
 
-func ProvideWorkspaceSymbols(ctx context.Context, programs []*compiler.Program, converters *Converters, query string) (lsproto.WorkspaceSymbolResponse, error) {
+func ProvideWorkspaceSymbols(ctx context.Context, programs []*compiler.Program, converters *lsconv.Converters, query string) (lsproto.WorkspaceSymbolResponse, error) {
 	// Obtain set of non-declaration source files from all active programs.
 	var sourceFiles collections.Set[*ast.SourceFile]
 	for _, program := range programs {

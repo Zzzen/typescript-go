@@ -5,7 +5,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
 
-type JSDocParsingMode int
+type JSDocParsingMode uint8
 
 const (
 	JSDocParsingModeParseAll JSDocParsingMode = iota

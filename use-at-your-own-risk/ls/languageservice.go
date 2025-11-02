@@ -4,6 +4,8 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/format"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsconv"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/sourcemap"
 )
@@ -11,7 +13,7 @@ import (
 type LanguageService struct {
 	host                    Host
 	program                 *compiler.Program
-	converters              *Converters
+	converters              *lsconv.Converters
 	documentPositionMappers map[string]*sourcemap.DocumentPositionMapper
 }
 
@@ -31,7 +33,7 @@ func (l *LanguageService) GetProgram() *compiler.Program {
 	return l.program
 }
 
-func (l *LanguageService) UserPreferences() *UserPreferences {
+func (l *LanguageService) UserPreferences() *lsutil.UserPreferences {
 	return l.host.UserPreferences()
 }
 

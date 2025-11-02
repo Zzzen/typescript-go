@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-json-experiment/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsconv"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/stringutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testrunner"
@@ -163,17 +163,17 @@ type TestFileInfo struct {
 	emit    bool
 }
 
-// FileName implements ls.Script.
+// FileName implements lsconv.Script.
 func (t *TestFileInfo) FileName() string {
 	return t.fileName
 }
 
-// Text implements ls.Script.
+// Text implements lsconv.Script.
 func (t *TestFileInfo) Text() string {
 	return t.Content
 }
 
-var _ ls.Script = (*TestFileInfo)(nil)
+var _ lsconv.Script = (*TestFileInfo)(nil)
 
 const emitThisFileOption = "emitthisfile"
 
@@ -368,8 +368,8 @@ func parseFileContent(fileName string, content string, fileOptions map[string]st
 
 	outputString := output.String()
 	// Set LS positions for markers
-	lineMap := ls.ComputeLSPLineStarts(outputString)
-	converters := ls.NewConverters(lsproto.PositionEncodingKindUTF8, func(_ string) *ls.LSPLineMap {
+	lineMap := lsconv.ComputeLSPLineStarts(outputString)
+	converters := lsconv.NewConverters(lsproto.PositionEncodingKindUTF8, func(_ string) *lsconv.LSPLineMap {
 		return lineMap
 	})
 

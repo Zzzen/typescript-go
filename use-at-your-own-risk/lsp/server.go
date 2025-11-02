@@ -15,6 +15,8 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsconv"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/project"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/project/ata"
@@ -218,7 +220,7 @@ func (s *Server) RefreshDiagnostics(ctx context.Context) error {
 	return nil
 }
 
-func (s *Server) RequestConfiguration(ctx context.Context) (*ls.UserPreferences, error) {
+func (s *Server) RequestConfiguration(ctx context.Context) (*lsutil.UserPreferences, error) {
 	if s.initializeParams.Capabilities == nil || s.initializeParams.Capabilities.Workspace == nil ||
 		!ptrIsTrue(s.initializeParams.Capabilities.Workspace.Configuration) {
 		// if no configuration request capapbility, return default preferences
@@ -798,7 +800,11 @@ func (s *Server) handleSetTrace(ctx context.Context, params *lsproto.SetTracePar
 }
 
 func (s *Server) handleDocumentDiagnostic(ctx context.Context, ls *ls.LanguageService, params *lsproto.DocumentDiagnosticParams) (lsproto.DocumentDiagnosticResponse, error) {
-	return ls.ProvideDiagnostics(ctx, params.TextDocument.Uri)
+	var diagnosticClientCapabilities *lsproto.DiagnosticClientCapabilities
+	if s.initializeParams != nil && s.initializeParams.Capabilities != nil && s.initializeParams.Capabilities.TextDocument != nil {
+		diagnosticClientCapabilities = s.initializeParams.Capabilities.TextDocument.Diagnostic
+	}
+	return ls.ProvideDiagnostics(ctx, params.TextDocument.Uri, diagnosticClientCapabilities)
 }
 
 func (s *Server) handleHover(ctx context.Context, ls *ls.LanguageService, params *lsproto.HoverParams) (lsproto.HoverResponse, error) {
@@ -816,11 +822,11 @@ func (s *Server) handleSignatureHelp(ctx context.Context, languageService *ls.La
 }
 
 func (s *Server) handleDefinition(ctx context.Context, ls *ls.LanguageService, params *lsproto.DefinitionParams) (lsproto.DefinitionResponse, error) {
-	return ls.ProvideDefinition(ctx, params.TextDocument.Uri, params.Position)
+	return ls.ProvideDefinition(ctx, params.TextDocument.Uri, params.Position, getDefinitionClientSupportsLink(s.initializeParams))
 }
 
 func (s *Server) handleTypeDefinition(ctx context.Context, ls *ls.LanguageService, params *lsproto.TypeDefinitionParams) (lsproto.TypeDefinitionResponse, error) {
-	return ls.ProvideTypeDefinition(ctx, params.TextDocument.Uri, params.Position)
+	return ls.ProvideTypeDefinition(ctx, params.TextDocument.Uri, params.Position, getTypeDefinitionClientSupportsLink(s.initializeParams))
 }
 
 func (s *Server) handleReferences(ctx context.Context, ls *ls.LanguageService, params *lsproto.ReferenceParams) (lsproto.ReferencesResponse, error) {
@@ -848,7 +854,7 @@ func (s *Server) handleCompletionItemResolve(ctx context.Context, params *lsprot
 	if err != nil {
 		return nil, err
 	}
-	languageService, err := s.session.GetLanguageService(ctx, ls.FileNameToDocumentURI(data.FileName))
+	languageService, err := s.session.GetLanguageService(ctx, lsconv.FileNameToDocumentURI(data.FileName))
 	if err != nil {
 		return nil, err
 	}
@@ -969,4 +975,20 @@ func getCompletionClientCapabilities(params *lsproto.InitializeParams) *lsproto.
 		return nil
 	}
 	return params.Capabilities.TextDocument.Completion
+}
+
+func getDefinitionClientSupportsLink(params *lsproto.InitializeParams) bool {
+	if params == nil || params.Capabilities == nil || params.Capabilities.TextDocument == nil ||
+		params.Capabilities.TextDocument.Definition == nil {
+		return false
+	}
+	return ptrIsTrue(params.Capabilities.TextDocument.Definition.LinkSupport)
+}
+
+func getTypeDefinitionClientSupportsLink(params *lsproto.InitializeParams) bool {
+	if params == nil || params.Capabilities == nil || params.Capabilities.TextDocument == nil ||
+		params.Capabilities.TextDocument.TypeDefinition == nil {
+		return false
+	}
+	return ptrIsTrue(params.Capabilities.TextDocument.TypeDefinition.LinkSupport)
 }

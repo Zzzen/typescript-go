@@ -13,7 +13,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsconv"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/stringutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/baseline"
@@ -131,6 +131,8 @@ type baselineFourslashLocationsOptions struct {
 
 	startMarkerPrefix func(span lsproto.Location) *string
 	endMarkerSuffix   func(span lsproto.Location) *string
+
+	additionalLocation *lsproto.Location
 }
 
 func (f *FourslashTest) getBaselineForLocationsWithFileContents(spans []lsproto.Location, options baselineFourslashLocationsOptions) string {
@@ -152,6 +154,7 @@ func (f *FourslashTest) getBaselineForGroupedLocationsWithFileContents(groupedRa
 	// but don't want to print it twice at the end if it already
 	// found in a file with ranges.
 	foundMarker := false
+	foundAdditionalLocation := false
 
 	baselineEntries := []string{}
 	err := f.vfs.WalkDir("/", func(path string, d vfs.DirEntry, e error) error {
@@ -163,7 +166,7 @@ func (f *FourslashTest) getBaselineForGroupedLocationsWithFileContents(groupedRa
 			return nil
 		}
 
-		fileName := ls.FileNameToDocumentURI(path)
+		fileName := lsconv.FileNameToDocumentURI(path)
 		ranges := groupedRanges.Get(fileName)
 		if len(ranges) == 0 {
 			return nil
@@ -179,12 +182,31 @@ func (f *FourslashTest) getBaselineForGroupedLocationsWithFileContents(groupedRa
 			foundMarker = true
 		}
 
+		if options.additionalLocation != nil && options.additionalLocation.Uri == fileName {
+			foundAdditionalLocation = true
+		}
+
 		baselineEntries = append(baselineEntries, f.getBaselineContentForFile(path, content, ranges, nil, options))
 		return nil
 	})
 
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		panic("walkdir error during fourslash baseline: " + err.Error())
+	}
+
+	// In Strada, there is a bug where we only ever add additional spans to baselines if we haven't
+	// already added the file to the baseline.
+	if options.additionalLocation != nil && !foundAdditionalLocation {
+		fileName := options.additionalLocation.Uri.FileName()
+		if content, ok := f.vfs.ReadFile(fileName); ok {
+			baselineEntries = append(
+				baselineEntries,
+				f.getBaselineContentForFile(fileName, content, []lsproto.Range{options.additionalLocation.Range}, nil, options),
+			)
+			if options.marker != nil && options.marker.FileName() == fileName {
+				foundMarker = true
+			}
+		}
 	}
 
 	if !foundMarker && options.marker != nil {
@@ -195,7 +217,6 @@ func (f *FourslashTest) getBaselineForGroupedLocationsWithFileContents(groupedRa
 		}
 	}
 
-	// !!! foundAdditionalSpan
 	// !!! skipDocumentContainingOnlyMarker
 
 	return strings.Join(baselineEntries, "\n\n")
@@ -219,7 +240,7 @@ func (f *FourslashTest) getBaselineContentForFile(
 	detailPrefixes := map[*baselineDetail]string{}
 	detailSuffixes := map[*baselineDetail]string{}
 	canDetermineContextIdInline := true
-	uri := ls.FileNameToDocumentURI(fileName)
+	uri := lsconv.FileNameToDocumentURI(fileName)
 
 	if options.marker != nil && options.marker.FileName() == fileName {
 		details = append(details, &baselineDetail{pos: options.marker.LSPos(), positionMarker: options.markerName})
@@ -258,7 +279,7 @@ func (f *FourslashTest) getBaselineContentForFile(
 	}
 
 	slices.SortStableFunc(details, func(d1, d2 *baselineDetail) int {
-		return ls.ComparePositions(d1.pos, d2.pos)
+		return lsproto.ComparePositions(d1.pos, d2.pos)
 	})
 	// !!! if canDetermineContextIdInline
 
@@ -362,20 +383,20 @@ type textWithContext struct {
 	isLibFile  bool
 	fileName   string
 	content    string // content of the original file
-	lineStarts *ls.LSPLineMap
-	converters *ls.Converters
+	lineStarts *lsconv.LSPLineMap
+	converters *lsconv.Converters
 
 	// posLineInfo
 	posInfo  *lsproto.Position
 	lineInfo int
 }
 
-// implements ls.Script
+// implements lsconv.Script
 func (t *textWithContext) FileName() string {
 	return t.fileName
 }
 
-// implements ls.Script
+// implements lsconv.Script
 func (t *textWithContext) Text() string {
 	return t.content
 }
@@ -391,10 +412,10 @@ func newTextWithContext(fileName string, content string) *textWithContext {
 		pos:        lsproto.Position{Line: 0, Character: 0},
 		fileName:   fileName,
 		content:    content,
-		lineStarts: ls.ComputeLSPLineStarts(content),
+		lineStarts: lsconv.ComputeLSPLineStarts(content),
 	}
 
-	t.converters = ls.NewConverters(lsproto.PositionEncodingKindUTF8, func(_ string) *ls.LSPLineMap {
+	t.converters = lsconv.NewConverters(lsproto.PositionEncodingKindUTF8, func(_ string) *lsconv.LSPLineMap {
 		return t.lineStarts
 	})
 	t.readableContents.WriteString("// === " + fileName + " ===")

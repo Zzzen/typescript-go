@@ -22,8 +22,8 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/format"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/jsnum"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/nodebuilder"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
@@ -86,7 +86,7 @@ type completionDataData struct {
 	keywordFilters               KeywordCompletionFilters
 	literals                     []literalValue
 	symbolToOriginInfoMap        map[int]*symbolOriginInfo
-	symbolToSortTextMap          map[ast.SymbolId]sortText
+	symbolToSortTextMap          map[ast.SymbolId]SortText
 	recommendedCompletion        *ast.Symbol
 	previousToken                *ast.Node
 	contextToken                 *ast.Node
@@ -177,25 +177,25 @@ var noCommaCommitCharacters = []string{".", ";"}
 
 var emptyCommitCharacters = []string{}
 
-type sortText string
+type SortText string
 
 const (
-	SortTextLocalDeclarationPriority         sortText = "10"
-	SortTextLocationPriority                 sortText = "11"
-	SortTextOptionalMember                   sortText = "12"
-	SortTextMemberDeclaredBySpreadAssignment sortText = "13"
-	SortTextSuggestedClassMembers            sortText = "14"
-	SortTextGlobalsOrKeywords                sortText = "15"
-	SortTextAutoImportSuggestions            sortText = "16"
-	SortTextClassMemberSnippets              sortText = "17"
-	SortTextJavascriptIdentifiers            sortText = "18"
+	SortTextLocalDeclarationPriority         SortText = "10"
+	SortTextLocationPriority                 SortText = "11"
+	SortTextOptionalMember                   SortText = "12"
+	SortTextMemberDeclaredBySpreadAssignment SortText = "13"
+	SortTextSuggestedClassMembers            SortText = "14"
+	SortTextGlobalsOrKeywords                SortText = "15"
+	SortTextAutoImportSuggestions            SortText = "16"
+	SortTextClassMemberSnippets              SortText = "17"
+	SortTextJavascriptIdentifiers            SortText = "18"
 )
 
-func DeprecateSortText(original sortText) sortText {
+func DeprecateSortText(original SortText) SortText {
 	return "z" + original
 }
 
-func sortBelow(original sortText) sortText {
+func sortBelow(original SortText) SortText {
 	return original + "1"
 }
 
@@ -459,7 +459,7 @@ func (l *LanguageService) getCompletionData(
 	typeChecker *checker.Checker,
 	file *ast.SourceFile,
 	position int,
-	preferences *UserPreferences,
+	preferences *lsutil.UserPreferences,
 ) completionData {
 	inCheckedFile := isCheckedFile(file, l.GetProgram().Options())
 
@@ -709,7 +709,7 @@ func (l *LanguageService) getCompletionData(
 	var symbols []*ast.Symbol
 	// Keys are indexes of `symbols`.
 	symbolToOriginInfoMap := map[int]*symbolOriginInfo{}
-	symbolToSortTextMap := map[ast.SymbolId]sortText{}
+	symbolToSortTextMap := map[ast.SymbolId]SortText{}
 	var seenPropertySymbols collections.Set[ast.SymbolId]
 	importSpecifierResolver := &importSpecifierResolverForCompletions{SourceFile: file, UserPreferences: preferences, l: l}
 	isTypeOnlyLocation := insideJSDocTagTypeExpression || insideJsDocImportTag ||
@@ -1940,7 +1940,7 @@ func (l *LanguageService) getCompletionEntriesFromSymbols(
 	clientOptions *lsproto.CompletionClientCapabilities,
 ) (uniqueNames collections.Set[string], sortedEntries []*lsproto.CompletionItem) {
 	closestSymbolDeclaration := getClosestSymbolDeclaration(data.contextToken, data.location)
-	useSemicolons := probablyUsesSemicolons(file)
+	useSemicolons := lsutil.ProbablyUsesSemicolons(file)
 	typeChecker, done := l.GetProgram().GetTypeCheckerForFile(ctx, file)
 	defer done()
 	isMemberCompletion := isMemberCompletionKind(data.completionKind)
@@ -1974,7 +1974,7 @@ func (l *LanguageService) getCompletionEntriesFromSymbols(
 			originalSortText = SortTextLocationPriority
 		}
 
-		var sortText sortText
+		var sortText SortText
 		if isDeprecated(symbol, typeChecker) {
 			sortText = DeprecateSortText(originalSortText)
 		} else {
@@ -2018,7 +2018,7 @@ func (l *LanguageService) getCompletionEntriesFromSymbols(
 
 func completionNameForLiteral(
 	file *ast.SourceFile,
-	preferences *UserPreferences,
+	preferences *lsutil.UserPreferences,
 	literal literalValue,
 ) string {
 	switch literal := literal.(type) {
@@ -2035,7 +2035,7 @@ func completionNameForLiteral(
 
 func createCompletionItemForLiteral(
 	file *ast.SourceFile,
-	preferences *UserPreferences,
+	preferences *lsutil.UserPreferences,
 	literal literalValue,
 ) *lsproto.CompletionItem {
 	return &lsproto.CompletionItem{
@@ -2050,7 +2050,7 @@ func (l *LanguageService) createCompletionItem(
 	ctx context.Context,
 	typeChecker *checker.Checker,
 	symbol *ast.Symbol,
-	sortText sortText,
+	sortText SortText,
 	replacementToken *ast.Node,
 	data *completionDataData,
 	position int,
@@ -2251,13 +2251,13 @@ func (l *LanguageService) createCompletionItem(
 	if data.isJsxIdentifierExpected &&
 		!data.isRightOfOpenTag &&
 		clientSupportsItemSnippet(clientOptions) &&
-		preferences.JsxAttributeCompletionStyle != JsxAttributeCompletionStyleNone &&
+		preferences.JsxAttributeCompletionStyle != lsutil.JsxAttributeCompletionStyleNone &&
 		!(ast.IsJsxAttribute(data.location.Parent) && data.location.Parent.Initializer() != nil) {
-		useBraces := preferences.JsxAttributeCompletionStyle == JsxAttributeCompletionStyleBraces
+		useBraces := preferences.JsxAttributeCompletionStyle == lsutil.JsxAttributeCompletionStyleBraces
 		t := typeChecker.GetTypeOfSymbolAtLocation(symbol, data.location)
 
 		// If is boolean like or undefined, don't return a snippet, we want to return just the completion.
-		if preferences.JsxAttributeCompletionStyle == JsxAttributeCompletionStyleAuto &&
+		if preferences.JsxAttributeCompletionStyle == lsutil.JsxAttributeCompletionStyleAuto &&
 			!t.IsBooleanLike() &&
 			!(t.IsUnion() && core.Some(t.Types(), (*checker.Type).IsBooleanLike)) {
 			if t.IsStringLike() ||
@@ -3152,7 +3152,7 @@ func (l *LanguageService) createRangeFromStringLiteralLikeContent(file *ast.Sour
 	return l.createLspRangeFromBounds(nodeStart+1, replacementEnd, file)
 }
 
-func quotePropertyName(file *ast.SourceFile, preferences *UserPreferences, name string) string {
+func quotePropertyName(file *ast.SourceFile, preferences *lsutil.UserPreferences, name string) string {
 	r, _ := utf8.DecodeRuneInString(name)
 	if unicode.IsDigit(r) {
 		return name
@@ -3292,7 +3292,7 @@ func compareCompletionEntries(entryInSlice *lsproto.CompletionItem, entryToInser
 			sliceEntryData.AutoImport != nil && sliceEntryData.AutoImport.ModuleSpecifier != "" &&
 			insertEntryData.AutoImport != nil && insertEntryData.AutoImport.ModuleSpecifier != "" {
 			// Sort same-named auto-imports by module specifier
-			result = compareNumberOfDirectorySeparators(
+			result = tspath.CompareNumberOfDirectorySeparators(
 				sliceEntryData.AutoImport.ModuleSpecifier,
 				insertEntryData.AutoImport.ModuleSpecifier,
 			)
@@ -4494,7 +4494,7 @@ func (l *LanguageService) createLSPCompletionItem(
 	name string,
 	insertText string,
 	filterText string,
-	sortText sortText,
+	sortText SortText,
 	elementKind ScriptElementKind,
 	kindModifiers collections.Set[ScriptElementKindModifier],
 	replacementSpan *lsproto.Range,
@@ -5155,7 +5155,7 @@ func (l *LanguageService) getSymbolCompletionFromItemData(
 		}
 	}
 
-	completionData := l.getCompletionData(ctx, ch, file, position, &UserPreferences{IncludeCompletionsForModuleExports: core.TSTrue, IncludeCompletionsForImportStatements: core.TSTrue})
+	completionData := l.getCompletionData(ctx, ch, file, position, &lsutil.UserPreferences{IncludeCompletionsForModuleExports: core.TSTrue, IncludeCompletionsForImportStatements: core.TSTrue})
 	if completionData == nil {
 		return detailsData{}
 	}
@@ -5735,7 +5735,7 @@ func getJSDocParameterCompletions(
 	position int,
 	typeChecker *checker.Checker,
 	options *core.CompilerOptions,
-	preferences *UserPreferences,
+	preferences *lsutil.UserPreferences,
 	tagNameOnly bool,
 ) []*lsproto.CompletionItem {
 	currentToken := astnav.GetTokenAtPosition(file, position)
@@ -5877,7 +5877,7 @@ func getJSDocParamAnnotation(
 	isSnippet bool,
 	typeChecker *checker.Checker,
 	options *core.CompilerOptions,
-	preferences *UserPreferences,
+	preferences *lsutil.UserPreferences,
 	tabstopCounter *int,
 ) string {
 	if isSnippet {
@@ -5963,7 +5963,7 @@ func generateJSDocParamTagsForDestructuring(
 	isSnippet bool,
 	typeChecker *checker.Checker,
 	options *core.CompilerOptions,
-	preferences *UserPreferences,
+	preferences *lsutil.UserPreferences,
 ) []string {
 	tabstopCounter := 1
 	if !isJS {
@@ -6003,7 +6003,7 @@ func jsDocParamPatternWorker(
 	isSnippet bool,
 	typeChecker *checker.Checker,
 	options *core.CompilerOptions,
-	preferences *UserPreferences,
+	preferences *lsutil.UserPreferences,
 	counter *int,
 ) []string {
 	if ast.IsObjectBindingPattern(pattern) && dotDotDotToken == nil {
@@ -6072,7 +6072,7 @@ func jsDocParamElementWorker(
 	isSnippet bool,
 	typeChecker *checker.Checker,
 	options *core.CompilerOptions,
-	preferences *UserPreferences,
+	preferences *lsutil.UserPreferences,
 	counter *int,
 ) []string {
 	if ast.IsIdentifier(element.Name()) { // `{ b }` or `{ b: newB }`
