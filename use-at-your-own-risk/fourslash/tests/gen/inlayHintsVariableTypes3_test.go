@@ -1,0 +1,29 @@
+package fourslash_test
+
+import (
+	"testing"
+
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
+)
+
+func TestInlayHintsVariableTypes3(t *testing.T) {
+	t.Parallel()
+
+	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
+	const content = `// @strict: true
+// @target: esnext
+interface DivElement {}
+declare var DivElementCtor: {
+  prototype: DivElement;
+  new(): DivElement;
+};
+interface ElementMap {
+  div: typeof DivElementCtor;
+}
+declare function getCtor<K extends keyof ElementMap>(tagName: K): ElementMap[K] | undefined;
+const div = getCtor("div");`
+	f := fourslash.NewFourslash(t, nil /*capabilities*/, content)
+	f.VerifyBaselineInlayHints(t, nil /*span*/, &lsutil.UserPreferences{IncludeInlayVariableTypeHints: true})
+}

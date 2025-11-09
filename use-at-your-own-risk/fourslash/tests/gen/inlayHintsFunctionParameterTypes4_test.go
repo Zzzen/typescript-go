@@ -1,0 +1,28 @@
+package fourslash_test
+
+import (
+	"testing"
+
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
+)
+
+func TestInlayHintsFunctionParameterTypes4(t *testing.T) {
+	t.Parallel()
+
+	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
+	const content = `// @allowJs: true
+// @checkJs: true
+// @Filename: /a.js
+class Foo {
+    #value = 0;
+    get foo() { return this.#value; }
+    /**
+     * @param {number} value
+     */
+    set foo(value) { this.#value = value; }
+}`
+	f := fourslash.NewFourslash(t, nil /*capabilities*/, content)
+	f.VerifyBaselineInlayHints(t, nil /*span*/, &lsutil.UserPreferences{IncludeInlayFunctionParameterTypeHints: true})
+}

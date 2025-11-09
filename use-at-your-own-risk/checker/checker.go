@@ -6781,10 +6781,26 @@ func (c *Checker) reportUnusedVariable(location *ast.Node, diagnostic *ast.Diagn
 }
 
 func (c *Checker) reportUnused(location *ast.Node, kind UnusedKind, diagnostic *ast.Diagnostic) {
-	if location.Flags&(ast.NodeFlagsAmbient|ast.NodeFlagsThisNodeOrAnySubNodesHasError) == 0 &&
-		(kind == UnusedKindLocal && c.compilerOptions.NoUnusedLocals.IsTrue() ||
-			(kind == UnusedKindParameter && c.compilerOptions.NoUnusedParameters.IsTrue())) {
-		c.diagnostics.Add(diagnostic)
+	if location.Flags&(ast.NodeFlagsAmbient|ast.NodeFlagsThisNodeOrAnySubNodesHasError) == 0 {
+		isError := c.unusedIsError(kind)
+		if isError {
+			c.diagnostics.Add(diagnostic)
+		} else {
+			suggestion := *diagnostic
+			suggestion.SetCategory(diagnostics.CategorySuggestion)
+			c.suggestionDiagnostics.Add(&suggestion)
+		}
+	}
+}
+
+func (c *Checker) unusedIsError(kind UnusedKind) bool {
+	switch kind {
+	case UnusedKindLocal:
+		return c.compilerOptions.NoUnusedLocals.IsTrue()
+	case UnusedKindParameter:
+		return c.compilerOptions.NoUnusedParameters.IsTrue()
+	default:
+		panic("Unhandled case in unusedIsError")
 	}
 }
 
@@ -6805,7 +6821,7 @@ func (c *Checker) checkUnusedClassMembers(node *ast.Node) {
 					c.reportUnused(parameter, UnusedKindLocal, NewDiagnosticForNode(parameter.Name(), diagnostics.Property_0_is_declared_but_its_value_is_never_read, ast.SymbolName(parameter.Symbol())))
 				}
 			}
-		case ast.KindIndexSignature, ast.KindSemicolonClassElement, ast.KindClassStaticBlockDeclaration:
+		case ast.KindIndexSignature, ast.KindSemicolonClassElement, ast.KindClassStaticBlockDeclaration, ast.KindJSTypeAliasDeclaration:
 			// Can't be private
 		default:
 			panic("Unhandled case in checkUnusedClassMembers")
@@ -9805,7 +9821,7 @@ func (c *Checker) checkFunctionExpressionOrObjectLiteralMethod(node *ast.Node, c
 	}
 	if checkMode&CheckModeSkipContextSensitive != 0 && c.isContextSensitive(node) {
 		// Skip parameters, return signature with return type that retains noncontextual parts so inferences can still be drawn in an early stage
-		if node.Type() == nil && !hasContextSensitiveParameters(node) {
+		if node.Type() == nil && !ast.HasContextSensitiveParameters(node) {
 			// Return plain anyFunctionType if there is no possibility we'll make inferences from the return type
 			contextualSignature := c.getContextualSignature(node)
 			if contextualSignature != nil && c.couldContainTypeVariables(c.getReturnTypeOfSignature(contextualSignature)) {
@@ -13401,18 +13417,30 @@ func (c *Checker) GetSuggestionDiagnostics(ctx context.Context, sourceFile *ast.
 
 func (c *Checker) getDiagnostics(ctx context.Context, sourceFile *ast.SourceFile, collection *ast.DiagnosticsCollection) []*ast.Diagnostic {
 	c.checkNotCanceled()
+	isSuggestionDiagnostics := collection == &c.suggestionDiagnostics
+
+	files := c.files
 	if sourceFile != nil {
-		c.CheckSourceFile(ctx, sourceFile)
-		if c.wasCanceled {
-			return nil
-		}
-		return collection.GetDiagnosticsForFile(sourceFile.FileName())
+		files = []*ast.SourceFile{sourceFile}
 	}
-	for _, file := range c.files {
+
+	for _, file := range files {
 		c.CheckSourceFile(ctx, file)
 		if c.wasCanceled {
 			return nil
 		}
+
+		// Check unused identifiers as suggestions if we're collecting suggestion diagnostics
+		// and they are not configured as errors
+		if isSuggestionDiagnostics && !file.IsDeclarationFile &&
+			!(c.compilerOptions.NoUnusedLocals.IsTrue() || c.compilerOptions.NoUnusedParameters.IsTrue()) {
+			links := c.sourceFileLinks.Get(file)
+			c.checkUnusedIdentifiers(links.identifierCheckNodes)
+		}
+	}
+
+	if sourceFile != nil {
+		return collection.GetDiagnosticsForFile(sourceFile.FileName())
 	}
 	return collection.GetDiagnostics()
 }
@@ -13959,7 +13987,7 @@ func (c *Checker) checkAndReportErrorForResolvingImportAliasToTypeOnlySymbol(nod
 		// TODO: how to get name for export *?
 		name := "*"
 		if !ast.IsExportDeclaration(typeOnlyDeclaration) {
-			name = getNameFromImportDeclaration(typeOnlyDeclaration).Text()
+			name = typeOnlyDeclaration.Name().Text()
 		}
 		c.error(decl.ModuleReference, message).AddRelatedInfo(createDiagnosticForNode(typeOnlyDeclaration, relatedMessage, name))
 	}
@@ -23201,7 +23229,7 @@ func (c *Checker) computeEnumMemberValue(member *ast.Node, autoValue jsnum.Numbe
 		c.error(member.Name(), diagnostics.An_enum_member_cannot_have_a_numeric_name)
 	} else {
 		text := ast.GetTextOfPropertyName(member.Name())
-		if isNumericLiteralName(text) && !isInfinityOrNaNString(text) {
+		if isNumericLiteralName(text) && !ast.IsInfinityOrNaNString(text) {
 			c.error(member.Name(), diagnostics.An_enum_member_cannot_have_a_numeric_name)
 		}
 	}
@@ -23268,7 +23296,7 @@ func (c *Checker) evaluateEntity(expr *ast.Node, location *ast.Node) evaluator.R
 			return evaluator.NewResult(nil, false, false, false)
 		}
 		if expr.Kind == ast.KindIdentifier {
-			if isInfinityOrNaNString(expr.Text()) && (symbol == c.getGlobalSymbol(expr.Text(), ast.SymbolFlagsValue, nil /*diagnostic*/)) {
+			if ast.IsInfinityOrNaNString(expr.Text()) && (symbol == c.getGlobalSymbol(expr.Text(), ast.SymbolFlagsValue, nil /*diagnostic*/)) {
 				// Technically we resolved a global lib file here, but the decision to treat this as numeric
 				// is more predicated on the fact that the single-file resolution *didn't* resolve to a
 				// different meaning of `Infinity` or `NaN`. Transpilers handle this no problem.
@@ -29700,7 +29728,7 @@ func (c *Checker) isContextSensitive(node *ast.Node) bool {
 }
 
 func (c *Checker) isContextSensitiveFunctionLikeDeclaration(node *ast.Node) bool {
-	return hasContextSensitiveParameters(node) || c.hasContextSensitiveReturnExpression(node)
+	return ast.HasContextSensitiveParameters(node) || c.hasContextSensitiveReturnExpression(node)
 }
 
 func (c *Checker) hasContextSensitiveReturnExpression(node *ast.Node) bool {

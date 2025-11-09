@@ -1,6 +1,10 @@
 package checker
 
-import "github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+import (
+	"slices"
+
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+)
 
 // TypeMapperKind
 
@@ -158,10 +162,8 @@ func newArrayToSingleTypeMapper(sources []*Type, target *Type) *TypeMapper {
 }
 
 func (m *ArrayToSingleTypeMapper) Map(t *Type) *Type {
-	for _, s := range m.sources {
-		if t == s {
-			return m.target
-		}
+	if slices.Contains(m.sources, t) {
+		return m.target
 	}
 	return t
 }
