@@ -11,7 +11,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/stringutil"
 )
 
-func (l *LanguageService) getExportInfos(
+func (l *LanguageService) getExportInfoMap(
 	ctx context.Context,
 	ch *checker.Checker,
 	importingFile *ast.SourceFile,

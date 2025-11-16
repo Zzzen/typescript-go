@@ -1,0 +1,32 @@
+package fourslash_test
+
+import (
+	"testing"
+
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
+)
+
+func TestImportNameCodeFixNewImportTypeRoots0(t *testing.T) {
+	t.Parallel()
+
+	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
+	const content = `// @Filename: a/f1.ts
+[|foo/*0*/();|]
+// @Filename: types/random/index.ts
+export function foo() {};
+// @Filename: tsconfig.json
+{
+    "compilerOptions": {
+        "typeRoots": [
+            "./types"
+        ]
+    }
+}`
+	f := fourslash.NewFourslash(t, nil /*capabilities*/, content)
+	f.VerifyImportFixAtPosition(t, []string{
+		`import { foo } from "../types/random";
+
+foo();`,
+	}, nil /*preferences*/)
+}

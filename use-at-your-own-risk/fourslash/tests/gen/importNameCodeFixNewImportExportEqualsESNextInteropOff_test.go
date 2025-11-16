@@ -1,0 +1,29 @@
+package fourslash_test
+
+import (
+	"testing"
+
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
+)
+
+func TestImportNameCodeFixNewImportExportEqualsESNextInteropOff(t *testing.T) {
+	t.Parallel()
+
+	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
+	const content = `// @Module: esnext
+// @Filename: /foo.d.ts
+declare module "foo" {
+  const foo: number;
+  export = foo;
+}
+// @Filename: /index.ts
+foo`
+	f := fourslash.NewFourslash(t, nil /*capabilities*/, content)
+	f.GoToFile(t, "/index.ts")
+	f.VerifyImportFixAtPosition(t, []string{
+		`import foo from "foo";
+
+foo`,
+	}, nil /*preferences*/)
+}

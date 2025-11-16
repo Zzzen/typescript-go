@@ -18,7 +18,10 @@ const (
 	typeFormatFlags   = checker.TypeFormatFlagsUseAliasDefinedOutsideCurrentScope
 )
 
-func (l *LanguageService) ProvideHover(ctx context.Context, documentURI lsproto.DocumentUri, position lsproto.Position, contentFormat lsproto.MarkupKind) (lsproto.HoverResponse, error) {
+func (l *LanguageService) ProvideHover(ctx context.Context, documentURI lsproto.DocumentUri, position lsproto.Position) (lsproto.HoverResponse, error) {
+	caps := lsproto.GetClientCapabilities(ctx)
+	contentFormat := lsproto.PreferredMarkupKind(caps.TextDocument.Hover.ContentFormat)
+
 	program, file := l.getProgramAndFile(documentURI)
 	node := astnav.GetTouchingPropertyName(file, int(l.converters.LineAndCharacterToPosition(file, position)))
 	if node.Kind == ast.KindSourceFile {
@@ -28,7 +31,8 @@ func (l *LanguageService) ProvideHover(ctx context.Context, documentURI lsproto.
 	c, done := program.GetTypeCheckerForFile(ctx, file)
 	defer done()
 	rangeNode := getNodeForQuickInfo(node)
-	quickInfo, documentation := l.getQuickInfoAndDocumentationForSymbol(c, c.GetSymbolAtLocation(node), rangeNode, contentFormat)
+	symbol := getSymbolAtLocationForQuickInfo(c, node)
+	quickInfo, documentation := l.getQuickInfoAndDocumentationForSymbol(c, symbol, rangeNode, contentFormat)
 	if quickInfo == "" {
 		return lsproto.HoverOrNull{}, nil
 	}
@@ -89,7 +93,7 @@ func (l *LanguageService) getDocumentationFromDeclaration(c *checker.Checker, de
 					case ast.KindJSDocParameterTag, ast.KindJSDocPropertyTag:
 						writeOptionalEntityName(&b, tag.Name())
 					case ast.KindJSDocAugmentsTag:
-						writeOptionalEntityName(&b, tag.AsJSDocAugmentsTag().ClassName)
+						writeOptionalEntityName(&b, tag.ClassName())
 					case ast.KindJSDocSeeTag:
 						writeOptionalEntityName(&b, tag.AsJSDocSeeTag().NameExpression)
 					case ast.KindJSDocTemplateTag:
@@ -185,7 +189,11 @@ func getQuickInfoAndDeclarationAtLocation(c *checker.Checker, symbol *ast.Symbol
 				}
 			}
 		}
-		b.WriteString(c.SymbolToStringEx(symbol, container, ast.SymbolFlagsNone, symbolFormatFlags))
+		if symbol.Name == ast.InternalSymbolNameExportEquals && symbol.Parent != nil && symbol.Parent.Flags&ast.SymbolFlagsModule != 0 {
+			b.WriteString("exports")
+		} else {
+			b.WriteString(c.SymbolToStringEx(symbol, container, ast.SymbolFlagsNone, symbolFormatFlags))
+		}
 		b.WriteString(": ")
 		if callNode := getCallOrNewExpression(node); callNode != nil {
 			b.WriteString(c.SignatureToStringEx(c.GetResolvedSignature(callNode), container, typeFormatFlags|checker.TypeFormatFlagsWriteCallStyleSignature|checker.TypeFormatFlagsWriteTypeArgumentsOfSignature|checker.TypeFormatFlagsWriteArrowStyleSignature))
@@ -280,6 +288,17 @@ func getNodeForQuickInfo(node *ast.Node) *ast.Node {
 		return node.Parent
 	}
 	return node
+}
+
+func getSymbolAtLocationForQuickInfo(c *checker.Checker, node *ast.Node) *ast.Symbol {
+	if objectElement := getContainingObjectLiteralElement(node); objectElement != nil {
+		if contextualType := c.GetContextualType(objectElement.Parent, checker.ContextFlagsNone); contextualType != nil {
+			if properties := c.GetPropertySymbolsFromContextualType(objectElement, contextualType, false /*unionSymbolOk*/); len(properties) == 1 {
+				return properties[0]
+			}
+		}
+	}
+	return c.GetSymbolAtLocation(node)
 }
 
 func inConstructorContext(node *ast.Node) bool {

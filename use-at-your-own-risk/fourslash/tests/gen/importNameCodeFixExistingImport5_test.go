@@ -1,0 +1,25 @@
+package fourslash_test
+
+import (
+	"testing"
+
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
+)
+
+func TestImportNameCodeFixExistingImport5(t *testing.T) {
+	t.Parallel()
+
+	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
+	const content = `[|import "./module";
+f1/*0*/();|]
+// @Filename: module.ts
+export function f1() {}
+export var v1 = 5;`
+	f := fourslash.NewFourslash(t, nil /*capabilities*/, content)
+	f.VerifyImportFixAtPosition(t, []string{
+		`import "./module";
+import { f1 } from "./module";
+f1();`,
+	}, nil /*preferences*/)
+}
