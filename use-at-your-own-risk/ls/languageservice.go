@@ -8,6 +8,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/sourcemap"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
 
 type LanguageService struct {
@@ -27,6 +28,10 @@ func NewLanguageService(
 		converters:              host.Converters(),
 		documentPositionMappers: map[string]*sourcemap.DocumentPositionMapper{},
 	}
+}
+
+func (l *LanguageService) toPath(fileName string) tspath.Path {
+	return tspath.ToPath(fileName, l.program.GetCurrentDirectory(), l.UseCaseSensitiveFileNames())
 }
 
 func (l *LanguageService) GetProgram() *compiler.Program {

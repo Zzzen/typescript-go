@@ -14,6 +14,7 @@ import (
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/locale"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/parser"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/repo"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
@@ -150,7 +151,7 @@ func readLibs() []lib {
 
 	if len(diags) > 0 {
 		for _, diag := range diags {
-			log.Printf("%s", diag.Message())
+			log.Printf("%s", diag.Localize(locale.Default))
 		}
 		log.Fatalf("failed to parse libs.json")
 	}

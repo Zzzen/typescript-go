@@ -8,7 +8,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsconv"
@@ -16,6 +15,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/stringutil"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
 
 func (l *LanguageService) ProvideDocumentSymbols(ctx context.Context, documentURI lsproto.DocumentUri) (lsproto.DocumentSymbolResponse, error) {
@@ -240,17 +240,17 @@ type DeclarationInfo struct {
 
 func ProvideWorkspaceSymbols(ctx context.Context, programs []*compiler.Program, converters *lsconv.Converters, query string) (lsproto.WorkspaceSymbolResponse, error) {
 	// Obtain set of non-declaration source files from all active programs.
-	var sourceFiles collections.Set[*ast.SourceFile]
+	sourceFiles := map[tspath.Path]*ast.SourceFile{}
 	for _, program := range programs {
 		for _, sourceFile := range program.SourceFiles() {
 			if !sourceFile.IsDeclarationFile {
-				sourceFiles.Add(sourceFile)
+				sourceFiles[sourceFile.Path()] = sourceFile
 			}
 		}
 	}
 	// Create DeclarationInfos for all declarations in the source files.
 	var infos []DeclarationInfo
-	for sourceFile := range sourceFiles.Keys() {
+	for _, sourceFile := range sourceFiles {
 		if ctx.Err() != nil {
 			return lsproto.SymbolInformationsOrWorkspaceSymbolsOrNull{}, nil
 		}
@@ -278,6 +278,7 @@ func ProvideWorkspaceSymbols(ctx context.Context, programs []*compiler.Program, 
 		symbol.Location = converters.ToLSPLocation(sourceFile, core.NewTextRange(pos, node.End()))
 		symbols[i] = &symbol
 	}
+
 	return lsproto.SymbolInformationsOrWorkspaceSymbolsOrNull{SymbolInformations: &symbols}, nil
 }
 

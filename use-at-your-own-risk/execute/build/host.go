@@ -6,6 +6,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/execute/incremental"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/execute/tsc"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"
@@ -45,7 +46,7 @@ func (h *host) GetCurrentDirectory() string {
 	return h.host.GetCurrentDirectory()
 }
 
-func (h *host) Trace(msg string) {
+func (h *host) Trace(msg *diagnostics.Message, args ...any) {
 	panic("build.Orchestrator.host does not support tracing, use a different host for tracing")
 }
 

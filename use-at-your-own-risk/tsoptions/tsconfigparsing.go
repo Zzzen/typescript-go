@@ -14,6 +14,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/jsnum"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/locale"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/module"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/parser"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
@@ -359,13 +360,22 @@ func validateJsonOptionValue(
 	if val == nil {
 		return nil, nil
 	}
-	errors := []*ast.Diagnostic{}
-	if opt.extraValidation {
-		diag := specToDiagnostic(val.(string), false)
-		if diag != nil {
+
+	var errors []*ast.Diagnostic
+
+	switch opt.extraValidation {
+	case extraValidationSpec:
+		if diag := specToDiagnostic(val.(string), false); diag != nil {
 			errors = append(errors, CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(sourceFile, valueExpression, diag))
-			return nil, errors
 		}
+	case extraValidationLocale:
+		if _, ok := locale.Parse(val.(string)); !ok {
+			errors = append(errors, CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(sourceFile, valueExpression, diagnostics.Locale_must_be_an_IETF_BCP_47_language_tag_Examples_Colon_0_1, "en", "ja-jp"))
+		}
+	}
+
+	if len(errors) > 0 {
+		return nil, errors
 	}
 	return val, nil
 }

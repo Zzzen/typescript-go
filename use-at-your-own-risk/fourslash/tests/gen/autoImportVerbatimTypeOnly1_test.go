@@ -5,7 +5,7 @@ import (
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
 	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
 
@@ -26,7 +26,7 @@ const x: /**/`
 		Name:        "I",
 		Source:      "./mod",
 		Description: "Add import from \"./mod.js\"",
-		AutoImportData: &ls.AutoImportData{
+		AutoImportData: &lsproto.AutoImportData{
 			ExportName:      "I",
 			FileName:        "/mod.ts",
 			ModuleSpecifier: "./mod.js",
@@ -40,7 +40,7 @@ const x: `),
 		Name:        "C",
 		Source:      "./mod",
 		Description: "Update import from \"./mod.js\"",
-		AutoImportData: &ls.AutoImportData{
+		AutoImportData: &lsproto.AutoImportData{
 			ExportName:      "C",
 			FileName:        "/mod.ts",
 			ModuleSpecifier: "./mod.js",

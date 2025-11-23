@@ -7,7 +7,9 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/execute/incremental"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/locale"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs"
 )
@@ -56,7 +58,7 @@ type CommandLineTesting interface {
 	OnBuildStatusReportEnd(w io.Writer)
 	OnWatchStatusReportStart()
 	OnWatchStatusReportEnd()
-	GetTrace(w io.Writer) func(msg string)
+	GetTrace(w io.Writer, locale locale.Locale) func(msg *diagnostics.Message, args ...any)
 	OnProgram(program *incremental.Program)
 }
 

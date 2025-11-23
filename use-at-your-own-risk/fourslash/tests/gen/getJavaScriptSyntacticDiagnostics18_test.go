@@ -1,0 +1,27 @@
+package fourslash_test
+
+import (
+	"testing"
+
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
+)
+
+func TestGetJavaScriptSyntacticDiagnostics18(t *testing.T) {
+	t.Parallel()
+
+	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
+	const content = `// @allowJs: true
+// @Filename: a.js
+class C {
+    x; // Regular property declaration allowed
+    static y; // static allowed
+    public z; // public not allowed
+}
+// @Filename: b.js
+class C {
+    x: number; // Types not allowed
+}`
+	f := fourslash.NewFourslash(t, nil /*capabilities*/, content)
+	f.VerifyBaselineNonSuggestionDiagnostics(t)
+}
