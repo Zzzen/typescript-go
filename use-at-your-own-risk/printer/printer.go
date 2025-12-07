@@ -3802,8 +3802,12 @@ func (p *Printer) emitImportAttribute(node *ast.ImportAttribute) {
 	p.emitImportAttributeName(node.Name())
 	p.writePunctuation(":")
 	p.writeSpace()
-	/// !!! emit trailing comments of value
-	p.emitExpression(node.Value, ast.OperatorPrecedenceDisallowComma)
+	value := node.Value
+	if p.emitContext.EmitFlags(node.Value)&EFNoLeadingComments == 0 {
+		commentRange := getCommentRange(value)
+		p.emitTrailingComments(commentRange.Pos(), commentSeparatorAfter)
+	}
+	p.emitExpression(value, ast.OperatorPrecedenceDisallowComma)
 	p.exitNode(node.AsNode(), state)
 }
 
@@ -5055,7 +5059,7 @@ func (p *Printer) emitCommentsBeforeToken(token ast.Kind, pos int, contextNode *
 
 	if contextNode.Pos() != startPos {
 		indentLeading := flags&tefIndentLeadingComments != 0
-		needsIndent := indentLeading && p.currentSourceFile != nil && !positionsAreOnSameLine(startPos, pos, p.currentSourceFile)
+		needsIndent := indentLeading && p.currentSourceFile != nil && !PositionsAreOnSameLine(startPos, pos, p.currentSourceFile)
 		p.increaseIndentIf(needsIndent)
 		p.emitLeadingComments(startPos, false /*elided*/)
 		p.decreaseIndentIf(needsIndent)

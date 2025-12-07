@@ -6,9 +6,10 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/module"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/modulespecifiers"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/outputpaths"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/symlinks"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/transformers/declarations"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
@@ -70,7 +71,7 @@ func (host *emitHost) GetNearestAncestorDirectoryWithPackageJson(dirname string)
 	return host.program.GetNearestAncestorDirectoryWithPackageJson(dirname)
 }
 
-func (host *emitHost) GetPackageJsonInfo(pkgJsonPath string) modulespecifiers.PackageJsonInfo {
+func (host *emitHost) GetPackageJsonInfo(pkgJsonPath string) *packagejson.InfoCacheEntry {
 	return host.program.GetPackageJsonInfo(pkgJsonPath)
 }
 
@@ -125,4 +126,13 @@ func (host *emitHost) GetEmitResolver() printer.EmitResolver {
 
 func (host *emitHost) IsSourceFileFromExternalLibrary(file *ast.SourceFile) bool {
 	return host.program.IsSourceFileFromExternalLibrary(file)
+}
+
+func (host *emitHost) GetSymlinkCache() *symlinks.KnownSymlinks {
+	return host.program.GetSymlinkCache()
+}
+
+func (host *emitHost) ResolveModuleName(moduleName string, containingFile string, resolutionMode core.ResolutionMode) *module.ResolvedModule {
+	resolved, _ := host.program.resolver.ResolveModuleName(moduleName, containingFile, resolutionMode, nil)
+	return resolved
 }

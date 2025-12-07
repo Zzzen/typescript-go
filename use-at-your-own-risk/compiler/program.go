@@ -19,12 +19,13 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/locale"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/module"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/modulespecifiers"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/outputpaths"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/parser"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/sourcemap"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/symlinks"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
@@ -68,6 +69,8 @@ type Program struct {
 	// Cached unresolved imports for ATA
 	unresolvedImportsOnce sync.Once
 	unresolvedImports     *collections.Set[string]
+	knownSymlinks         *symlinks.KnownSymlinks
+	knownSymlinksOnce     sync.Once
 
 	// Used by workspace/symbol
 	hasTSFileOnce sync.Once
@@ -99,7 +102,7 @@ func (p *Program) GetNearestAncestorDirectoryWithPackageJson(dirname string) str
 }
 
 // GetPackageJsonInfo implements checker.Program.
-func (p *Program) GetPackageJsonInfo(pkgJsonPath string) modulespecifiers.PackageJsonInfo {
+func (p *Program) GetPackageJsonInfo(pkgJsonPath string) *packagejson.InfoCacheEntry {
 	scoped := p.resolver.GetPackageScopeForPath(pkgJsonPath)
 	if scoped != nil && scoped.Exists() && scoped.PackageDirectory == tspath.GetDirectoryPath(pkgJsonPath) {
 		return scoped
@@ -222,8 +225,8 @@ func (p *Program) GetSourceFileFromReference(origin *ast.SourceFile, ref *ast.Fi
 
 func NewProgram(opts ProgramOptions) *Program {
 	p := &Program{opts: opts}
-	p.initCheckerPool()
 	p.processedFiles = processAllProgramFiles(p.opts, p.SingleThreaded())
+	p.initCheckerPool()
 	p.verifyCompilerOptions()
 	return p
 }
@@ -247,6 +250,7 @@ func (p *Program) UpdateProgram(changedFilePath tspath.Path, newHost CompilerHos
 		programDiagnostics:          p.programDiagnostics,
 		hasEmitBlockingDiagnostics:  p.hasEmitBlockingDiagnostics,
 		unresolvedImports:           p.unresolvedImports,
+		knownSymlinks:               p.knownSymlinks,
 	}
 	result.initCheckerPool()
 	index := core.FindIndex(result.files, func(file *ast.SourceFile) bool { return file.Path() == newFile.Path() })
@@ -255,20 +259,22 @@ func (p *Program) UpdateProgram(changedFilePath tspath.Path, newHost CompilerHos
 	result.filesByPath = maps.Clone(result.filesByPath)
 	result.filesByPath[newFile.Path()] = newFile
 	updateFileIncludeProcessor(result)
+	result.knownSymlinks = symlinks.NewKnownSymlink(result.GetCurrentDirectory(), result.UseCaseSensitiveFileNames())
+	if len(result.resolvedModules) > 0 || len(result.typeResolutionsInFile) > 0 {
+		result.knownSymlinks.SetSymlinksFromResolutions(result.ForEachResolvedModule, result.ForEachResolvedTypeReferenceDirective)
+	}
 	return result, true
 }
 
 func (p *Program) initCheckerPool() {
+	if !p.finishedProcessing {
+		panic("Program must finish processing files before initializing checker pool")
+	}
+
 	if p.opts.CreateCheckerPool != nil {
 		p.checkerPool = p.opts.CreateCheckerPool(p)
 	} else {
-		checkers := 4
-		if p.SingleThreaded() {
-			checkers = 1
-		} else if p.Options().Checkers != nil {
-			checkers = min(max(*p.Options().Checkers, 1), 256)
-		}
-		p.checkerPool = newCheckerPool(checkers, p)
+		p.checkerPool = newCheckerPool(p)
 	}
 }
 
@@ -632,6 +638,10 @@ func (p *Program) verifyCompilerOptions() {
 		if options.Incremental.IsFalse() {
 			createDiagnosticForOptionName(diagnostics.Composite_projects_may_not_disable_incremental_compilation, "declaration", "")
 		}
+	}
+
+	if options.TsBuildInfoFile == "" && options.Incremental.IsTrue() && options.ConfigFilePath == "" {
+		createCompilerOptionsDiagnostic(diagnostics.Option_incremental_is_only_valid_with_a_known_configuration_file_like_tsconfig_json_or_when_tsBuildInfoFile_is_explicitly_provided)
 	}
 
 	p.verifyProjectReferences()
@@ -1041,15 +1051,12 @@ func (p *Program) getSemanticDiagnosticsForFileNotFilter(ctx context.Context, so
 		defer done()
 	}
 	diags := slices.Clip(sourceFile.BindDiagnostics())
-
 	// Ask for diags from all checkers; checking one file may add diagnostics to other files.
 	// These are deduplicated later.
 	checkerDiags := make([][]*ast.Diagnostic, p.checkerPool.Count())
 	p.checkerPool.ForEachCheckerParallel(ctx, func(idx int, checker *checker.Checker) {
 		if sourceFile == nil || checker == fileChecker {
 			checkerDiags[idx] = checker.GetDiagnostics(ctx, sourceFile)
-		} else {
-			checkerDiags[idx] = checker.GetDiagnosticsWithoutCheck(sourceFile)
 		}
 	})
 	if ctx.Err() != nil {
@@ -1653,6 +1660,86 @@ func (p *Program) HasTSFile() bool {
 		}
 	})
 	return p.hasTSFile
+}
+
+func (p *Program) GetSymlinkCache() *symlinks.KnownSymlinks {
+	p.knownSymlinksOnce.Do(func() {
+		if p.knownSymlinks == nil {
+			p.knownSymlinks = symlinks.NewKnownSymlink(p.GetCurrentDirectory(), p.UseCaseSensitiveFileNames())
+
+			// Resolved modules store realpath information when they're resolved inside node_modules
+			if len(p.resolvedModules) > 0 || len(p.typeResolutionsInFile) > 0 {
+				p.knownSymlinks.SetSymlinksFromResolutions(p.ForEachResolvedModule, p.ForEachResolvedTypeReferenceDirective)
+			}
+
+			// Check other dependencies for symlinks
+			var seenPackageJsons collections.Set[tspath.Path]
+			for filePath, meta := range p.sourceFileMetaDatas {
+				if meta.PackageJsonDirectory == "" ||
+					!p.SourceFileMayBeEmitted(p.GetSourceFileByPath(filePath), false) ||
+					!seenPackageJsons.AddIfAbsent(p.toPath(meta.PackageJsonDirectory)) {
+					continue
+				}
+				packageJsonName := tspath.CombinePaths(meta.PackageJsonDirectory, "package.json")
+				info := p.GetPackageJsonInfo(packageJsonName)
+				if info.GetContents() == nil {
+					continue
+				}
+
+				for dep := range info.GetContents().GetRuntimeDependencyNames().Keys() {
+					// Skip work in common case: we already saved a symlink for this package directory
+					// in the node_modules adjacent to this package.json
+					possibleDirectoryPath := p.toPath(tspath.CombinePaths(meta.PackageJsonDirectory, "node_modules", dep))
+					if p.knownSymlinks.HasDirectory(possibleDirectoryPath) {
+						continue
+					}
+					if !strings.HasPrefix(dep, "@types") {
+						possibleTypesDirectoryPath := p.toPath(tspath.CombinePaths(meta.PackageJsonDirectory, "node_modules", module.GetTypesPackageName(dep)))
+						if p.knownSymlinks.HasDirectory(possibleTypesDirectoryPath) {
+							continue
+						}
+					}
+
+					if packageResolution := p.resolver.ResolvePackageDirectory(dep, packageJsonName, core.ResolutionModeCommonJS, nil); packageResolution.IsResolved() {
+						p.knownSymlinks.ProcessResolution(
+							tspath.CombinePaths(packageResolution.OriginalPath, "package.json"),
+							tspath.CombinePaths(packageResolution.ResolvedFileName, "package.json"),
+						)
+					}
+				}
+			}
+		}
+	})
+	return p.knownSymlinks
+}
+
+func (p *Program) ResolveModuleName(moduleName string, containingFile string, resolutionMode core.ResolutionMode) *module.ResolvedModule {
+	resolved, _ := p.resolver.ResolveModuleName(moduleName, containingFile, resolutionMode, nil)
+	return resolved
+}
+
+func (p *Program) ForEachResolvedModule(callback func(resolution *module.ResolvedModule, moduleName string, mode core.ResolutionMode, filePath tspath.Path), file *ast.SourceFile) {
+	forEachResolution(p.resolvedModules, callback, file)
+}
+
+func (p *Program) ForEachResolvedTypeReferenceDirective(callback func(resolution *module.ResolvedTypeReferenceDirective, moduleName string, mode core.ResolutionMode, filePath tspath.Path), file *ast.SourceFile) {
+	forEachResolution(p.typeResolutionsInFile, callback, file)
+}
+
+func forEachResolution[T any](resolutionCache map[tspath.Path]module.ModeAwareCache[T], callback func(resolution T, moduleName string, mode core.ResolutionMode, filePath tspath.Path), file *ast.SourceFile) {
+	if file != nil {
+		if resolutions, ok := resolutionCache[file.Path()]; ok {
+			for key, resolution := range resolutions {
+				callback(resolution, key.Name, key.Mode, file.Path())
+			}
+		}
+	} else {
+		for filePath, resolutions := range resolutionCache {
+			for key, resolution := range resolutions {
+				callback(resolution, key.Name, key.Mode, filePath)
+			}
+		}
+	}
 }
 
 var plainJSErrors = collections.NewSetFromItems(

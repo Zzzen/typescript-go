@@ -211,7 +211,14 @@ func (s *Session) Configure(userPreferences *lsutil.UserPreferences) {
 	s.configRWMu.Lock()
 	defer s.configRWMu.Unlock()
 	s.pendingConfigChanges = true
+
+	// Tell the client to re-request certain commands depending on user preference changes.
+	oldUserPreferences := s.userPreferences
 	s.userPreferences = userPreferences
+	if oldUserPreferences != userPreferences && oldUserPreferences != nil && userPreferences != nil {
+		s.refreshInlayHintsIfNeeded(oldUserPreferences, userPreferences)
+		s.refreshCodeLensIfNeeded(oldUserPreferences, userPreferences)
+	}
 }
 
 func (s *Session) InitializeWithConfig(userPreferences *lsutil.UserPreferences) {
@@ -528,9 +535,9 @@ func (s *Session) UpdateSnapshot(ctx context.Context, overlays map[tspath.Path]*
 	// !!! userPreferences/configuration updates
 	s.backgroundQueue.Enqueue(context.Background(), func(ctx context.Context) {
 		if s.options.LoggingEnabled {
-			s.logger.Write(newSnapshot.builderLogs.String())
+			s.logger.Log(newSnapshot.builderLogs.String())
 			s.logProjectChanges(oldSnapshot, newSnapshot)
-			s.logger.Write("")
+			s.logger.Log("")
 		}
 		if s.options.WatchEnabled {
 			if err := s.updateWatches(oldSnapshot, newSnapshot); err != nil && s.options.LoggingEnabled {
@@ -772,7 +779,7 @@ func (s *Session) logCacheStats(snapshot *Snapshot) {
 			return true
 		})
 	}
-	s.logger.Write("\n======== Cache Statistics ========")
+	s.logger.Log("\n======== Cache Statistics ========")
 	s.logger.Logf("Open file count:   %6d", len(snapshot.fs.overlays))
 	s.logger.Logf("Cached disk files: %6d", len(snapshot.fs.diskFiles))
 	s.logger.Logf("Project count:     %6d", len(snapshot.ProjectCollection.Projects()))
@@ -786,6 +793,22 @@ func (s *Session) logCacheStats(snapshot *Snapshot) {
 
 func (s *Session) NpmInstall(cwd string, npmInstallArgs []string) ([]byte, error) {
 	return s.npmExecutor.NpmInstall(cwd, npmInstallArgs)
+}
+
+func (s *Session) refreshInlayHintsIfNeeded(oldPrefs *lsutil.UserPreferences, newPrefs *lsutil.UserPreferences) {
+	if oldPrefs.InlayHints != newPrefs.InlayHints {
+		if err := s.client.RefreshInlayHints(context.Background()); err != nil && s.options.LoggingEnabled {
+			s.logger.Logf("Error refreshing inlay hints: %v", err)
+		}
+	}
+}
+
+func (s *Session) refreshCodeLensIfNeeded(oldPrefs *lsutil.UserPreferences, newPrefs *lsutil.UserPreferences) {
+	if oldPrefs.CodeLens != newPrefs.CodeLens {
+		if err := s.client.RefreshCodeLens(context.Background()); err != nil && s.options.LoggingEnabled {
+			s.logger.Logf("Error refreshing code lens: %v", err)
+		}
+	}
 }
 
 func (s *Session) publishProgramDiagnostics(oldSnapshot *Snapshot, newSnapshot *Snapshot) {

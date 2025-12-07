@@ -8,8 +8,9 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/checker"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/module"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/modulespecifiers"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/printer"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/symlinks"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/emittestutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/parsetestutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/transformers"
@@ -69,7 +70,15 @@ func (p *fakeProgram) GetNearestAncestorDirectoryWithPackageJson(dirname string)
 	return ""
 }
 
-func (p *fakeProgram) GetPackageJsonInfo(pkgJsonPath string) modulespecifiers.PackageJsonInfo {
+func (p *fakeProgram) GetSymlinkCache() *symlinks.KnownSymlinks {
+	return nil
+}
+
+func (p *fakeProgram) ResolveModuleName(moduleName string, containingFile string, resolutionMode core.ResolutionMode) *module.ResolvedModule {
+	return nil
+}
+
+func (p *fakeProgram) GetPackageJsonInfo(pkgJsonPath string) *packagejson.InfoCacheEntry {
 	return nil
 }
 
