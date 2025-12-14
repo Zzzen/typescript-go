@@ -1,0 +1,24 @@
+package fourslash_test
+
+import (
+	"testing"
+
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
+)
+
+func TestFormattingTemplates(t *testing.T) {
+	fourslash.SkipIfFailing(t)
+	t.Parallel()
+	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
+	const content = `String.call ` + "`" + `${123}` + "`" + `/*1*/
+String.call ` + "`" + `${123} ${456}` + "`" + `/*2*/`
+	f, done := fourslash.NewFourslash(t, nil /*capabilities*/, content)
+	defer done()
+	f.GoToMarker(t, "1")
+	f.Insert(t, ";")
+	f.VerifyCurrentLineContentIs(t, "String.call`${123}`;")
+	f.GoToMarker(t, "2")
+	f.Insert(t, ";")
+	f.VerifyCurrentLineContentIs(t, "String.call`${123} ${456}`;")
+}

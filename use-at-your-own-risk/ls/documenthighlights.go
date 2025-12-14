@@ -5,7 +5,6 @@ import (
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/astnav"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
@@ -46,13 +45,13 @@ func (l *LanguageService) ProvideDocumentHighlights(ctx context.Context, documen
 	if len(documentHighlights) == 0 {
 		documentHighlights = l.getSyntacticDocumentHighlights(node, sourceFile)
 	}
-	// if nil is passed here we never generate an error, just pass an empty higlight
+	// if nil is passed here we never generate an error, just pass an empty highlight
 	return lsproto.DocumentHighlightsOrNull{DocumentHighlights: &documentHighlights}, nil
 }
 
 func (l *LanguageService) getSemanticDocumentHighlights(ctx context.Context, position int, node *ast.Node, program *compiler.Program, sourceFile *ast.SourceFile) []*lsproto.DocumentHighlight {
 	options := refOptions{use: referenceUseNone}
-	referenceEntries := l.getReferencedSymbolsForNode(ctx, position, node, program, []*ast.SourceFile{sourceFile}, options, &collections.Set[string]{})
+	referenceEntries := l.getReferencedSymbolsForNode(ctx, position, node, program, []*ast.SourceFile{sourceFile}, options)
 	if referenceEntries == nil {
 		return nil
 	}

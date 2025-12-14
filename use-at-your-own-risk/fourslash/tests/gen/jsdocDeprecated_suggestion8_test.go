@@ -1,0 +1,26 @@
+package fourslash_test
+
+import (
+	"testing"
+
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
+)
+
+func TestJsdocDeprecated_suggestion8(t *testing.T) {
+	fourslash.SkipIfFailing(t)
+	t.Parallel()
+	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
+	const content = `// @Filename: first.ts
+/** @deprecated */
+export declare function tap<T>(next: null): void;
+export declare function tap<T>(next: T): T;
+// @Filename: second.ts
+import { tap } from './first';
+tap`
+	f, done := fourslash.NewFourslash(t, nil /*capabilities*/, content)
+	defer done()
+	f.GoToFile(t, "second.ts")
+	f.VerifyNoErrors(t)
+	f.VerifySuggestionDiagnostics(t, nil)
+}

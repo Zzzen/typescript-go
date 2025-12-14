@@ -1,0 +1,28 @@
+package fourslash_test
+
+import (
+	"testing"
+
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
+)
+
+func TestNavigationBarItemsImports(t *testing.T) {
+	fourslash.SkipIfFailing(t)
+	t.Parallel()
+	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
+	const content = `import d1 from "a";
+
+import { a } from "a";
+
+import { b as B } from "a" 
+
+import d2, { c, d as D } from "a" 
+
+import e = require("a");
+
+import * as ns from "a";`
+	f, done := fourslash.NewFourslash(t, nil /*capabilities*/, content)
+	defer done()
+	f.VerifyBaselineDocumentSymbol(t)
+}
