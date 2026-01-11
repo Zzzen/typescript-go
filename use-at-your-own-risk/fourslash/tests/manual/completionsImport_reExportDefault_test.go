@@ -10,23 +10,19 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
 
-func TestCompletionsImport_reexportTransient(t *testing.T) {
+func TestCompletionsImport_reExportDefault(t *testing.T) {
 	fourslash.SkipIfFailing(t)
 	t.Parallel()
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	const content = `// @esModuleInterop: true
-// @Filename: /transient.d.ts
-declare const map: { [K in "one"]: number };
-export = map;
-// @Filename: /r1.ts
-export { one } from "./transient";
-// @Filename: /r2.ts
-export { one } from "./r1";
-// @Filename: /index.ts
-one/**/`
+	const content = `// @module: esnext
+// @Filename: /a/b/impl.ts
+export default function foo() {}
+// @Filename: /a/index.ts
+export { default as foo } from "./b/impl";
+// @Filename: /use.ts
+fo/**/`
 	f, done := fourslash.NewFourslash(t, nil /*capabilities*/, content)
 	defer done()
-	f.GoToMarker(t, "")
 	f.VerifyCompletions(t, "", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
@@ -37,16 +33,26 @@ one/**/`
 			Exact: CompletionGlobalsPlus(
 				[]fourslash.CompletionsExpectedItem{
 					&lsproto.CompletionItem{
-						Label: "one",
+						Label: "foo",
 						Data: &lsproto.CompletionItemData{
-							AutoImport: &lsproto.AutoImportData{
-								ModuleSpecifier: "./transient",
+							AutoImport: &lsproto.AutoImportFix{
+								ModuleSpecifier: "./a",
 							},
 						},
+						Detail:              PtrTo("(alias) function foo(): void\nexport foo"),
+						Kind:                PtrTo(lsproto.CompletionItemKindFunction),
 						AdditionalTextEdits: fourslash.AnyTextEdits,
 						SortText:            PtrTo(string(ls.SortTextAutoImportSuggestions)),
 					},
 				}, false),
 		},
+	})
+	f.VerifyApplyCodeActionFromCompletion(t, PtrTo(""), &fourslash.ApplyCodeActionFromCompletionOptions{
+		Name:        "foo",
+		Source:      "./a",
+		Description: "Add import from \"./a\"",
+		NewFileContent: PtrTo(`import { foo } from "./a";
+
+fo`),
 	})
 }

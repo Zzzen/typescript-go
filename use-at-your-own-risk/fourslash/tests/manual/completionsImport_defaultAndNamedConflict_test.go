@@ -34,19 +34,7 @@ someMo/**/`
 					&lsproto.CompletionItem{
 						Label: "someModule",
 						Data: &lsproto.CompletionItemData{
-							AutoImport: &lsproto.AutoImportData{
-								ModuleSpecifier: "./someModule",
-							},
-						},
-						Detail:              PtrTo("(property) default: 1"),
-						Kind:                PtrTo(lsproto.CompletionItemKindField),
-						AdditionalTextEdits: fourslash.AnyTextEdits,
-						SortText:            PtrTo(string(ls.SortTextAutoImportSuggestions)),
-					},
-					&lsproto.CompletionItem{
-						Label: "someModule",
-						Data: &lsproto.CompletionItemData{
-							AutoImport: &lsproto.AutoImportData{
+							AutoImport: &lsproto.AutoImportFix{
 								ModuleSpecifier: "./someModule",
 							},
 						},
@@ -55,18 +43,29 @@ someMo/**/`
 						AdditionalTextEdits: fourslash.AnyTextEdits,
 						SortText:            PtrTo(string(ls.SortTextAutoImportSuggestions)),
 					},
-				}, true),
+					&lsproto.CompletionItem{
+						Label: "someModule",
+						Data: &lsproto.CompletionItemData{
+							AutoImport: &lsproto.AutoImportFix{
+								ModuleSpecifier: "./someModule",
+							},
+						},
+						Detail:              PtrTo("(property) default: 1"),
+						Kind:                PtrTo(lsproto.CompletionItemKindField),
+						AdditionalTextEdits: fourslash.AnyTextEdits,
+						SortText:            PtrTo(string(ls.SortTextAutoImportSuggestions)),
+					},
+				},
+				true,
+			),
 		},
 	})
 	f.VerifyApplyCodeActionFromCompletion(t, PtrTo(""), &fourslash.ApplyCodeActionFromCompletionOptions{
-		Name:   "someModule",
-		Source: "./someModule",
-		AutoImportData: &lsproto.AutoImportData{
-			ExportName: "default",
-			FileName:   "/someModule.ts",
-		},
-		Description: "Add import from \"./someModule\"",
-		NewFileContent: PtrTo(`import someModule from "./someModule";
+		Name:          "someModule",
+		Source:        "./someModule",
+		AutoImportFix: &lsproto.AutoImportFix{},
+		Description:   "Add import from \"./someModule\"",
+		NewFileContent: PtrTo(`import { someModule } from "./someModule";
 
 someMo`),
 	})
