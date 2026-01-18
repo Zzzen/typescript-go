@@ -7,14 +7,21 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
 
-func TestSemicolonFormattingInsideAStringLiteral(t *testing.T) {
-	fourslash.SkipIfFailing(t)
+func TestDocumentHighlightYield(t *testing.T) {
 	t.Parallel()
+
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	const content = `   var x = "string/**/`
+	const content = `
+// @Filename: /a.ts
+class C {
+  async *[Symbol.asyncIterator]() {
+    [|yield|] {
+		type: 'type',
+	};
+  }
+}
+`
 	f, done := fourslash.NewFourslash(t, nil /*capabilities*/, content)
 	defer done()
-	f.GoToMarker(t, "")
-	f.Insert(t, ";")
-	f.VerifyCurrentLineContentIs(t, "   var x = \"string;")
+	f.VerifyBaselineDocumentHighlights(t, nil /*preferences*/, f.Ranges()[0])
 }

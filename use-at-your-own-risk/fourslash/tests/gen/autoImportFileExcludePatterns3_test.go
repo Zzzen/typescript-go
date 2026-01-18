@@ -6,6 +6,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
 	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -58,6 +59,7 @@ declare module "foo" {
 					},
 				}, false),
 		},
+		UserPreferences: &lsutil.UserPreferences{AutoImportFileExcludePatterns: []string{"/**/ambient1.d.ts"}},
 	})
 	f.VerifyCompletions(t, "", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
@@ -68,5 +70,6 @@ declare module "foo" {
 		Items: &fourslash.CompletionsExpectedItems{
 			Exact: CompletionGlobals,
 		},
+		UserPreferences: &lsutil.UserPreferences{AutoImportFileExcludePatterns: []string{"/**/ambient*"}},
 	})
 }

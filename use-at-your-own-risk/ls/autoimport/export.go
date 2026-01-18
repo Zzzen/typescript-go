@@ -1,8 +1,6 @@
 package autoimport
 
 import (
-	"strings"
-
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/checker"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
@@ -78,9 +76,6 @@ func (e *Export) Name() string {
 	}
 	if e.ExportName == ast.InternalSymbolNameExportEquals {
 		return e.Target.ExportName
-	}
-	if strings.HasPrefix(e.ExportName, ast.InternalSymbolNamePrefix) {
-		panic("unexpected internal symbol name in export")
 	}
 	return e.ExportName
 }

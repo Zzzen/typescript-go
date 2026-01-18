@@ -18,7 +18,25 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs/wrapvfs"
 )
+
+func tryGetModuleIDAndFileNameOfModuleSymbol(symbol *ast.Symbol) (ModuleID, string, bool) {
+	if !symbol.IsExternalModule() {
+		return "", "", false
+	}
+	decl := ast.GetNonAugmentationDeclaration(symbol)
+	if decl == nil {
+		return "", "", false
+	}
+	if decl.Kind == ast.KindSourceFile {
+		return ModuleID(decl.AsSourceFile().Path()), decl.AsSourceFile().FileName(), true
+	}
+	if ast.IsModuleWithStringLiteralName(decl) {
+		return ModuleID(decl.Name().Text()), "", true
+	}
+	return "", "", false
+}
 
 func getModuleIDAndFileNameOfModuleSymbol(symbol *ast.Symbol) (ModuleID, string) {
 	if !symbol.IsExternalModule() {
@@ -229,4 +247,27 @@ func getPackageRealpathFuncs(fs vfs.FS, packageDir string) (toRealpath, toSymlin
 		return fileName
 	}
 	return toRealpath, toSymlink
+}
+
+type resolutionHost struct {
+	fs               vfs.FS
+	currentDirectory string
+}
+
+var _ module.ResolutionHost = (*resolutionHost)(nil)
+
+func (rh *resolutionHost) GetCurrentDirectory() string {
+	return rh.currentDirectory
+}
+
+func (rh *resolutionHost) FS() vfs.FS {
+	return rh.fs
+}
+
+func getModuleResolver(host RegistryCloneHost, realpath func(string) string) *module.Resolver {
+	rh := &resolutionHost{
+		fs:               wrapvfs.Wrap(host.FS(), wrapvfs.Replacements{Realpath: realpath}),
+		currentDirectory: host.GetCurrentDirectory(),
+	}
+	return module.NewResolver(rh, core.EmptyCompilerOptions, "", "")
 }

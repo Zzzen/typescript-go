@@ -6,6 +6,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
 	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -66,6 +67,7 @@ myFunction/**/`
 				},
 			},
 		},
+		UserPreferences: &lsutil.UserPreferences{ImportModuleSpecifierPreference: "non-relative"},
 	})
 	f.VerifyCompletions(t, nil, &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
@@ -97,6 +99,7 @@ myFunction/**/`
 				},
 			},
 		},
+		UserPreferences: &lsutil.UserPreferences{ImportModuleSpecifierPreference: "relative"},
 	})
 	f.VerifyCompletions(t, nil, &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
@@ -128,5 +131,6 @@ myFunction/**/`
 				},
 			},
 		},
+		UserPreferences: &lsutil.UserPreferences{ImportModuleSpecifierPreference: "project-relative"},
 	})
 }
