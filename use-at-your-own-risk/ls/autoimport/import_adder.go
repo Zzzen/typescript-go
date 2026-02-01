@@ -11,7 +11,6 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/format"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/locale"
 
 	// "github.com/Zzzen/typescript-go/use-at-your-own-risk/ls"
@@ -55,7 +54,7 @@ type importAdder struct {
 	ctx           context.Context
 	checker       *checker.Checker
 	view          *View
-	formatOptions *format.FormatCodeSettings
+	formatOptions *lsutil.FormatCodeSettings
 	converters    *lsconv.Converters
 	preferences   *lsutil.UserPreferences
 
@@ -73,7 +72,7 @@ func NewImportAdder(
 	checker *checker.Checker,
 	file *ast.SourceFile,
 	view *View,
-	formatOptions *format.FormatCodeSettings,
+	formatOptions *lsutil.FormatCodeSettings,
 	converters *lsconv.Converters,
 	preferences *lsutil.UserPreferences,
 ) ImportAdder {

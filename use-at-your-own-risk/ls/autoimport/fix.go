@@ -16,7 +16,6 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/format"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/locale"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/change"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsconv"
@@ -56,7 +55,7 @@ func (f *Fix) Edits(
 	ctx context.Context,
 	file *ast.SourceFile,
 	compilerOptions *core.CompilerOptions,
-	formatOptions *format.FormatCodeSettings,
+	formatOptions *lsutil.FormatCodeSettings,
 	converters *lsconv.Converters,
 	preferences *lsutil.UserPreferences,
 ) ([]*lsproto.TextEdit, string) {

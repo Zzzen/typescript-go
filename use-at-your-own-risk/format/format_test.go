@@ -7,6 +7,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/format"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/parser"
 	"gotest.tools/v3/assert"
 )
@@ -30,14 +31,14 @@ func TestFormatNoTrailingNewline(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := format.WithFormatCodeSettings(t.Context(), &format.FormatCodeSettings{
-				EditorSettings: format.EditorSettings{
+			ctx := format.WithFormatCodeSettings(t.Context(), &lsutil.FormatCodeSettings{
+				EditorSettings: lsutil.EditorSettings{
 					TabSize:                4,
 					IndentSize:             4,
 					BaseIndentSize:         4,
 					NewLineCharacter:       "\n",
 					ConvertTabsToSpaces:    true,
-					IndentStyle:            format.IndentStyleSmart,
+					IndentStyle:            lsutil.IndentStyleSmart,
 					TrimTrailingWhitespace: true,
 				},
 			}, "\n")
