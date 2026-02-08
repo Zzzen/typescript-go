@@ -8,34 +8,36 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
 
-func TestAugmentedTypesModule2(t *testing.T) {
+func TestImportCompletionsPackageJsonImportsPatternRootWildcard(t *testing.T) {
 	fourslash.SkipIfFailing(t)
 	t.Parallel()
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	const content = `function /*11*/m2f(x: number) { };
-namespace m2f { export interface I { foo(): void } }
-var x: m2f./*1*/
-var /*2*/r = m2f/*3*/;`
+	const content = `// @module: nodenext
+// @Filename: /package.json
+{
+  "imports": {
+    "#/*": "./src/*"
+  }
+}
+// @Filename: /src/something.ts
+export function something(name: string): any;
+// @Filename: /src/features/bar.ts
+export function bar(): any;
+// @Filename: /a.ts
+import {} from "#//*1*/";`
 	f, done := fourslash.NewFourslash(t, nil /*capabilities*/, content)
 	defer done()
-	f.VerifyQuickInfoAt(t, "11", "function m2f(x: number): void\nnamespace m2f", "")
-	f.VerifyCompletions(t, "1", &fourslash.CompletionsExpectedList{
+	f.VerifyCompletions(t, []string{"1"}, &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
-			CommitCharacters: &DefaultCommitCharacters,
+			CommitCharacters: &[]string{},
 			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
 			Exact: []fourslash.CompletionsExpectedItem{
-				"I",
+				"something.js",
+				"features",
 			},
 		},
 	})
-	f.Insert(t, "I.")
-	f.VerifyCompletions(t, nil, nil)
-	f.Backspace(t, 1)
-	f.VerifyQuickInfoAt(t, "2", "var r: (x: number) => void", "")
-	f.GoToMarker(t, "3")
-	f.Insert(t, "(")
-	f.VerifySignatureHelp(t, fourslash.VerifySignatureHelpOptions{Text: "m2f(x: number): void"})
 }

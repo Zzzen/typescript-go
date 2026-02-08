@@ -8,31 +8,48 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
 
-func TestAutoImportModuleNone1(t *testing.T) {
+func TestStringLiteralCompletionsWithinInferredObjectWhenItsKeysAreUsedOutsideOfIt(t *testing.T) {
 	fourslash.SkipIfFailing(t)
 	t.Parallel()
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	const content = `// @module: none
-// @moduleResolution: bundler
-// @target: es5
-// @Filename: /node_modules/dep/index.d.ts
-export const x: number;
-// @Filename: /index.ts
- x/**/`
+	const content = `// @strict: true
+declare function createMachine<T>(config: {
+  initial: keyof T;
+  states: {
+    [K in keyof T]: {
+      on?: Record<string, keyof T>;
+    };
+  };
+}): void;
+
+createMachine({
+  initial: "a",
+  states: {
+    a: {
+      on: {
+        NEXT: "/*1*/",
+      },
+    },
+    b: {
+      on: {
+        NEXT: "/*2*/",
+      },
+    },
+  },
+});`
 	f, done := fourslash.NewFourslash(t, nil /*capabilities*/, content)
 	defer done()
-	f.VerifyCompletions(t, "", &fourslash.CompletionsExpectedList{
+	f.VerifyCompletions(t, []string{"1", "2"}, &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
 		ItemDefaults: &fourslash.CompletionsExpectedItemDefaults{
 			CommitCharacters: &DefaultCommitCharacters,
 			EditRange:        Ignored,
 		},
 		Items: &fourslash.CompletionsExpectedItems{
-			Excludes: []string{
-				"x",
+			Exact: []fourslash.CompletionsExpectedItem{
+				"a",
+				"b",
 			},
 		},
 	})
-	f.ReplaceLine(t, 0, "import { x } from 'dep'; x;")
-	f.VerifyNonSuggestionDiagnostics(t, nil)
 }
