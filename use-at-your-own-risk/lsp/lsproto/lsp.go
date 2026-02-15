@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/go-json-experiment/json"
-	"github.com/go-json-experiment/json/jsontext"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/bundled"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
+
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/jsonrpc"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
@@ -138,13 +138,9 @@ func assertAtMostOne(message string, values ...bool) {
 	}
 }
 
-func ptrTo[T any](v T) *T {
-	return &v
-}
-
 type requiredProp bool
 
-func (v *requiredProp) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
+func (v *requiredProp) UnmarshalJSONFrom(dec *json.Decoder) error {
 	*v = true
 	return dec.SkipValue()
 }
@@ -162,9 +158,9 @@ func (info RequestInfo[Params, Resp]) UnmarshalResult(result any) (Resp, error) 
 		return r, nil
 	}
 
-	raw, ok := result.(jsontext.Value)
+	raw, ok := result.(json.Value)
 	if !ok {
-		return *new(Resp), fmt.Errorf("expected jsontext.Value, got %T", result)
+		return *new(Resp), fmt.Errorf("expected json.Value, got %T", result)
 	}
 
 	r, err := unmarshalResult(info.Method, raw)
@@ -196,7 +192,7 @@ func (info NotificationInfo[Params]) NewNotificationMessage(params Params) *Requ
 
 type Null struct{}
 
-func (Null) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
+func (Null) UnmarshalJSONFrom(dec *json.Decoder) error {
 	data, err := dec.ReadValue()
 	if err != nil {
 		return err
@@ -207,8 +203,8 @@ func (Null) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
 	return nil
 }
 
-func (Null) MarshalJSONTo(enc *jsontext.Encoder) error {
-	return enc.WriteToken(jsontext.Null)
+func (Null) MarshalJSONTo(enc *json.Encoder) error {
+	return enc.WriteToken(json.Null)
 }
 
 type clientCapabilitiesKey struct{}
@@ -232,3 +228,8 @@ func PreferredMarkupKind(formats []MarkupKind) MarkupKind {
 	}
 	return MarkupKindPlainText
 }
+
+const (
+	CodeActionKindSourceRemoveUnusedImports CodeActionKind = "source.removeUnusedImports"
+	CodeActionKindSourceSortImports         CodeActionKind = "source.sortImports"
+)

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
-	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -24,7 +23,7 @@ function foo() {
 		{
 			Pattern:     "c",
 			Preferences: nil,
-			Exact: PtrTo([]*lsproto.SymbolInformation{
+			Exact: new([]*lsproto.SymbolInformation{
 				{
 					Name:     "c",
 					Kind:     lsproto.SymbolKindVariable,
@@ -34,12 +33,12 @@ function foo() {
 		}, {
 			Pattern:     "d",
 			Preferences: nil,
-			Exact: PtrTo([]*lsproto.SymbolInformation{
+			Exact: new([]*lsproto.SymbolInformation{
 				{
 					Name:          "d",
 					Kind:          lsproto.SymbolKindVariable,
 					Location:      f.Ranges()[1].LSLocation(),
-					ContainerName: PtrTo("foo"),
+					ContainerName: new("foo"),
 				},
 			}),
 		},

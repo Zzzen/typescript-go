@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
-	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -29,7 +28,7 @@ foo/** More comments*/((/*2*/
 		Expected:    nil,
 		Context: &lsproto.SignatureHelpContext{
 			IsRetrigger:      false,
-			TriggerCharacter: PtrTo("("),
+			TriggerCharacter: new("("),
 			TriggerKind:      lsproto.SignatureHelpTriggerKindTriggerCharacter,
 		},
 	})
@@ -38,7 +37,7 @@ foo/** More comments*/((/*2*/
 		Expected:    nil,
 		Context: &lsproto.SignatureHelpContext{
 			IsRetrigger:      false,
-			TriggerCharacter: PtrTo("("),
+			TriggerCharacter: new("("),
 			TriggerKind:      lsproto.SignatureHelpTriggerKindTriggerCharacter,
 		},
 	})

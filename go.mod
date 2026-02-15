@@ -1,13 +1,13 @@
 module github.com/Zzzen/typescript-go
 
-go 1.25
+go 1.26
 
 require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e
 	github.com/google/go-cmp v0.7.0
-	github.com/microsoft/typescript-go v0.0.0-20260207160609-5597f4c8ecf4
+	github.com/microsoft/typescript-go v0.0.0-20260214145651-c1bb2b0ecdd6
 	github.com/peter-evans/patience v0.3.0
 	github.com/zeebo/xxh3 v1.1.0
 	golang.org/x/sync v0.19.0

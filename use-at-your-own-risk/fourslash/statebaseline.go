@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-json-experiment/json"
-	"github.com/go-json-experiment/json/jsontext"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
+
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsconv"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/project"
@@ -56,7 +56,7 @@ func (f *FourslashTest) baselineRequestOrNotification(t *testing.T, method lspro
 		return
 	}
 
-	res, _ := json.Marshal(requestOrMessage{method, params}, jsontext.WithIndent("  "))
+	res, _ := json.Marshal(requestOrMessage{method, params}, json.WithIndent("  "))
 	f.stateBaseline.baseline.WriteString("\n" + string(res) + "\n")
 	f.stateBaseline.isInitialized = true
 }

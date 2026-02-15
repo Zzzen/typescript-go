@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
-	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -18,12 +17,12 @@ func TestCompletionsDotInArrayLiteralInObjectLiteral(t *testing.T) {
 	defer done()
 	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
 		{
-			Code:    &lsproto.IntegerOrString{Integer: PtrTo[int32](1109)},
+			Code:    &lsproto.IntegerOrString{Integer: new(int32(1109))},
 			Message: "Expression expected.",
 			Range:   f.Ranges()[0].LSRange,
 		},
 		{
-			Code:    &lsproto.IntegerOrString{Integer: PtrTo[int32](1003)},
+			Code:    &lsproto.IntegerOrString{Integer: new(int32(1003))},
 			Message: "Identifier expected.",
 			Range:   f.Ranges()[1].LSRange,
 		},

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
-	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -23,12 +22,12 @@ class C {
 		{
 			Pattern:     "iterator",
 			Preferences: nil,
-			Exact: PtrTo([]*lsproto.SymbolInformation{
+			Exact: new([]*lsproto.SymbolInformation{
 				{
 					Name:          "iterator",
 					Kind:          lsproto.SymbolKindMethod,
 					Location:      f.Ranges()[0].LSLocation(),
-					ContainerName: PtrTo("C"),
+					ContainerName: new("C"),
 				},
 			}),
 		},

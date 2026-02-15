@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
-	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -36,7 +35,7 @@ Builder<IThing>({
 	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
 		{
 			Message: "Property 'args' does not exist on type 'IThing'.",
-			Code:    &lsproto.IntegerOrString{Integer: PtrTo[int32](2339)},
+			Code:    &lsproto.IntegerOrString{Integer: new(int32(2339))},
 		},
 	})
 }

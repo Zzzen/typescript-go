@@ -10,7 +10,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/jsonutil"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/locale"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
@@ -66,7 +66,7 @@ func generateTSConfig(options *collections.OrderedMap[string, any], locale local
 			}
 		}
 
-		b, err := jsonutil.MarshalIndent(value, "", "")
+		b, err := json.MarshalIndent(value, "", "")
 		if err != nil {
 			panic(fmt.Sprintf("should not happen: %v", err))
 		}

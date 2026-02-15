@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-json-experiment/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/execute/incremental"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/jsonutil"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 )
 
 type readableBuildInfo struct {
@@ -227,7 +226,7 @@ func toReadableBuildInfo(buildInfo *incremental.BuildInfo, buildInfoText string)
 	readable.setAffectedFilesPendingEmit()
 	readable.setEmitSignatures()
 	readable.setResolvedRoot()
-	contents, err := jsonutil.MarshalIndent(&readable, "", "  ")
+	contents, err := json.MarshalIndent(&readable, "", "  ")
 	if err != nil {
 		panic("readableBuildInfo: failed to marshal readable build info: " + err.Error())
 	}

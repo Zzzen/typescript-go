@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
-	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
@@ -29,7 +28,7 @@ export const [|weirdName: number|];
 		{
 			Pattern:     "weirdName",
 			Preferences: &lsutil.UserPreferences{ExcludeLibrarySymbolsInNavTo: false},
-			Exact: PtrTo([]*lsproto.SymbolInformation{
+			Exact: new([]*lsproto.SymbolInformation{
 				{
 					Name:     "weirdName",
 					Kind:     lsproto.SymbolKindVariable,
@@ -47,7 +46,7 @@ export const [|weirdName: number|];
 		{
 			Pattern:     "weirdName",
 			Preferences: nil,
-			Exact: PtrTo([]*lsproto.SymbolInformation{
+			Exact: new([]*lsproto.SymbolInformation{
 				{
 					Name:     "weirdName",
 					Kind:     lsproto.SymbolKindVariable,

@@ -3,8 +3,7 @@ package lsproto
 import (
 	"fmt"
 
-	"github.com/go-json-experiment/json"
-	"github.com/go-json-experiment/json/jsontext"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/jsonrpc"
 )
 
@@ -35,10 +34,10 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 		JSONRPC jsonrpc.JSONRPCVersion `json:"jsonrpc"`
 		Method  Method                 `json:"method"`
 		ID      *jsonrpc.ID            `json:"id,omitzero"`
-		Params  jsontext.Value         `json:"params"`
+		Params  json.Value             `json:"params"`
 		// We don't have a method in the response, so we have no idea what to decode.
 		// Store the raw text and let the caller decode it.
-		Result jsontext.Value         `json:"result,omitzero"`
+		Result json.Value             `json:"result,omitzero"`
 		Error  *jsonrpc.ResponseError `json:"error,omitzero"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -58,9 +57,6 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 	var err error
 	if len(raw.Params) > 0 {
 		params, err = unmarshalParams(raw.Method, raw.Params)
-		if err != nil {
-			return fmt.Errorf("%w: %w", ErrorCodeInvalidRequest, err)
-		}
 	}
 
 	if raw.ID == nil {
@@ -75,6 +71,9 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 		Params: params,
 	}
 
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrorCodeInvalidParams, err)
+	}
 	return nil
 }
 
@@ -105,7 +104,7 @@ func (r *RequestMessage) UnmarshalJSON(data []byte) error {
 		JSONRPC jsonrpc.JSONRPCVersion `json:"jsonrpc"`
 		ID      *jsonrpc.ID            `json:"id"`
 		Method  Method                 `json:"method"`
-		Params  jsontext.Value         `json:"params"`
+		Params  json.Value             `json:"params"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return fmt.Errorf("%w: %w", ErrorCodeInvalidRequest, err)
@@ -125,7 +124,7 @@ func (r *RequestMessage) UnmarshalJSON(data []byte) error {
 
 type ResponseMessage struct {
 	JSONRPC jsonrpc.JSONRPCVersion `json:"jsonrpc"`
-	ID      *jsonrpc.ID            `json:"id,omitzero"`
+	ID      *jsonrpc.ID            `json:"id"`
 	Result  any                    `json:"result,omitzero"`
 	Error   *jsonrpc.ResponseError `json:"error,omitzero"`
 }

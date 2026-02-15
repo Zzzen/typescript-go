@@ -7,12 +7,12 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/go-json-experiment/json/jsontext"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/api/encoder"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/astnav"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/checker"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsconv"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/project"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"
@@ -93,7 +93,7 @@ func (s *Session) ensureSnapshot() {
 }
 
 // HandleRequest implements Handler.
-func (s *Session) HandleRequest(ctx context.Context, method string, params jsontext.Value) (any, error) {
+func (s *Session) HandleRequest(ctx context.Context, method string, params json.Value) (any, error) {
 	// Handle simple methods that don't need param parsing
 	switch method {
 	case "echo":
@@ -145,7 +145,7 @@ func (s *Session) HandleRequest(ctx context.Context, method string, params jsont
 }
 
 // HandleNotification implements Handler.
-func (s *Session) HandleNotification(ctx context.Context, method string, params jsontext.Value) error {
+func (s *Session) HandleNotification(ctx context.Context, method string, params json.Value) error {
 	// TODO: Implement notification handling
 	return nil
 }

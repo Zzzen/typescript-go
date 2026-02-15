@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
-	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -26,7 +25,7 @@ foo<number,number>/*1*/("hello", 123,456)
 		Expected:    nil,
 		Context: &lsproto.SignatureHelpContext{
 			IsRetrigger:      false,
-			TriggerCharacter: PtrTo("("),
+			TriggerCharacter: new("("),
 			TriggerKind:      lsproto.SignatureHelpTriggerKindTriggerCharacter,
 		},
 	})

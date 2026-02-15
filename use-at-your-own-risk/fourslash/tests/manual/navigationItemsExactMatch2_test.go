@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
-	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -35,12 +34,12 @@ var [|point = new Shapes.Point()|];
 		{
 			Pattern:     "point",
 			Preferences: nil,
-			Exact: PtrTo([]*lsproto.SymbolInformation{
+			Exact: new([]*lsproto.SymbolInformation{
 				{
 					Name:          "Point",
 					Kind:          lsproto.SymbolKindClass,
 					Location:      f.Ranges()[0].LSLocation(),
-					ContainerName: PtrTo("Shapes"),
+					ContainerName: new("Shapes"),
 				},
 				{
 					Name:     "point",
@@ -51,12 +50,12 @@ var [|point = new Shapes.Point()|];
 		}, {
 			Pattern:     "distance",
 			Preferences: nil,
-			Exact: PtrTo([]*lsproto.SymbolInformation{
+			Exact: new([]*lsproto.SymbolInformation{
 				{
 					Name:          "distance1",
 					Kind:          lsproto.SymbolKindProperty,
 					Location:      f.Ranges()[3].LSLocation(),
-					ContainerName: PtrTo("Point"),
+					ContainerName: new("Point"),
 				},
 				{
 					Name:     "distance2",
@@ -67,36 +66,36 @@ var [|point = new Shapes.Point()|];
 					Name:          "distanceFromA",
 					Kind:          lsproto.SymbolKindProperty,
 					Location:      f.Ranges()[2].LSLocation(),
-					ContainerName: PtrTo("Point"),
+					ContainerName: new("Point"),
 				},
 				{
 					Name:          "distanceLocal",
 					Kind:          lsproto.SymbolKindVariable,
 					Location:      f.Ranges()[4].LSLocation(),
-					ContainerName: PtrTo("distance1"),
+					ContainerName: new("distance1"),
 				},
 				{
 					Name:          "distanceLocal1",
 					Kind:          lsproto.SymbolKindVariable,
 					Location:      f.Ranges()[7].LSLocation(),
-					ContainerName: PtrTo("distance2"),
+					ContainerName: new("distance2"),
 				},
 			}),
 		}, {
 			Pattern:     "origin",
 			Preferences: nil,
-			Exact: PtrTo([]*lsproto.SymbolInformation{
+			Exact: new([]*lsproto.SymbolInformation{
 				{
 					Name:          "_origin",
 					Kind:          lsproto.SymbolKindProperty,
 					Location:      f.Ranges()[1].LSLocation(),
-					ContainerName: PtrTo("Point"),
+					ContainerName: new("Point"),
 				},
 			}),
 		}, {
 			Pattern:     "square",
 			Preferences: nil,
-			Exact:       PtrTo([]*lsproto.SymbolInformation{}),
+			Exact:       new([]*lsproto.SymbolInformation{}),
 		},
 	})
 }

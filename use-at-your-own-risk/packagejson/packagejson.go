@@ -1,9 +1,8 @@
 package packagejson
 
 import (
-	json "github.com/go-json-experiment/json"
-	"github.com/go-json-experiment/json/jsontext"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
+	json "github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 )
 
 type HeaderFields struct {
@@ -116,7 +115,7 @@ type Fields struct {
 
 func Parse(data []byte) (Fields, error) {
 	var f Fields
-	if err := json.Unmarshal(data, &f, jsontext.AllowDuplicateNames(true)); err != nil {
+	if err := json.Unmarshal(data, &f, json.AllowDuplicateNames(true)); err != nil {
 		return Fields{}, err
 	}
 	return f, nil

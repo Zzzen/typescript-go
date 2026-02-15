@@ -1,9 +1,8 @@
 package packagejson
 
 import (
-	"github.com/go-json-experiment/json"
-	"github.com/go-json-experiment/json/jsontext"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/json"
 )
 
 type objectKind int8
@@ -23,7 +22,7 @@ type ExportsOrImports struct {
 
 var _ json.UnmarshalerFrom = (*ExportsOrImports)(nil)
 
-func (e *ExportsOrImports) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
+func (e *ExportsOrImports) UnmarshalJSONFrom(dec *json.Decoder) error {
 	return unmarshalJSONValueV2[ExportsOrImports](&e.JSONValue, dec)
 }
 

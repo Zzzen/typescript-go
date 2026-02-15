@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
-	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -25,7 +24,7 @@ import {foo, [|bar as baz|]} from './library';`
 		{
 			Pattern:     "foo",
 			Preferences: nil,
-			Exact: PtrTo([]*lsproto.SymbolInformation{
+			Exact: new([]*lsproto.SymbolInformation{
 				{
 					Name:     "foo",
 					Kind:     lsproto.SymbolKindFunction,
@@ -35,7 +34,7 @@ import {foo, [|bar as baz|]} from './library';`
 		}, {
 			Pattern:     "bar",
 			Preferences: nil,
-			Exact: PtrTo([]*lsproto.SymbolInformation{
+			Exact: new([]*lsproto.SymbolInformation{
 				{
 					Name:     "bar",
 					Kind:     lsproto.SymbolKindFunction,
@@ -45,7 +44,7 @@ import {foo, [|bar as baz|]} from './library';`
 		}, {
 			Pattern:     "baz",
 			Preferences: nil,
-			Exact: PtrTo([]*lsproto.SymbolInformation{
+			Exact: new([]*lsproto.SymbolInformation{
 				{
 					Name:     "baz",
 					Kind:     lsproto.SymbolKindVariable,

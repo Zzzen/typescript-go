@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
-	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -38,7 +37,7 @@ declare class Thing<T> {
 	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
 		{
 			Message: "Class declarations cannot have more than one '@augments' or '@extends' tag.",
-			Code:    &lsproto.IntegerOrString{Integer: PtrTo[int32](8025)},
+			Code:    &lsproto.IntegerOrString{Integer: new(int32(8025))},
 		},
 	})
 }
