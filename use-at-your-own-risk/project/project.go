@@ -5,7 +5,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
@@ -341,7 +340,6 @@ func (p *Project) CreateProgram() CreateProgramResult {
 				Config:                      commandLine,
 				UseSourceOfProjectReference: true,
 				TypingsLocation:             typingsLocation,
-				JSDocParsingMode:            ast.JSDocParsingModeParseAll,
 				CreateCheckerPool: func(program *compiler.Program) compiler.CheckerPool {
 					checkerPool = newCheckerPool(4, program, p.log)
 					return checkerPool

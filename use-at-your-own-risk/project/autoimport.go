@@ -6,7 +6,6 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/autoimport"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/packagejson"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
@@ -152,10 +151,8 @@ func (a *autoImportRegistryCloneHost) GetSourceFile(fileName string, path tspath
 		return nil
 	}
 	opts := ast.SourceFileParseOptions{
-		FileName:         fileName,
-		Path:             path,
-		CompilerOptions:  core.EmptyCompilerOptions.SourceFileAffecting(),
-		JSDocParsingMode: ast.JSDocParsingModeParseAll,
+		FileName: fileName,
+		Path:     path,
 	}
 	key := NewParseCacheKey(opts, fh.Hash(), fh.Kind())
 	result := a.parseCache.Load(key, fh)
