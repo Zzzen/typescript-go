@@ -1,0 +1,19 @@
+// === Inlay Hints ===
+  static readonly [propertyName] = true;
+                                ^
+{
+  "position": {
+    "line": 2,
+    "character": 32
+  },
+  "label": [
+    {
+      "value": ": "
+    },
+    {
+      "value": "true"
+    }
+  ],
+  "kind": 1,
+  "paddingLeft": true
+}

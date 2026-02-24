@@ -350,6 +350,8 @@ func (n *Node) Text() string {
 		return strings.Join(n.AsJSDocLinkCode().text, "")
 	case KindJSDocLinkPlain:
 		return strings.Join(n.AsJSDocLinkPlain().text, "")
+	case KindComputedPropertyName:
+		return "[" + n.Expression().Text() + "]"
 	}
 	panic(fmt.Sprintf("Unhandled case in Node.Text: %T", n.data))
 }
