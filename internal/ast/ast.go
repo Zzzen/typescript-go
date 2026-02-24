@@ -351,7 +351,19 @@ func (n *Node) Text() string {
 	case KindJSDocLinkPlain:
 		return strings.Join(n.AsJSDocLinkPlain().text, "")
 	case KindComputedPropertyName:
-		return "[" + n.Expression().Text() + "]"
+		expression := n.Expression()
+		if IsStringOrNumericLiteralLike(expression) {
+			return "[" + expression.Text() + "]"
+		}
+		if source := GetSourceFileOfNode(expression); source != nil {
+			text := source.Text()
+			start := expression.Pos()
+			end := expression.End()
+			if start >= 0 && end >= start && end <= len(text) {
+				return "[" + text[start:end] + "]"
+			}
+		}
+		return "[]"
 	}
 	panic(fmt.Sprintf("Unhandled case in Node.Text: %T", n.data))
 }

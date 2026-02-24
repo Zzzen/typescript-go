@@ -1,0 +1,38 @@
+// === Inlay Hints ===
+  static readonly [foo ? bar : "c"] = true;
+                                   ^
+{
+  "position": {
+    "line": 3,
+    "character": 35
+  },
+  "label": [
+    {
+      "value": ": "
+    },
+    {
+      "value": "true"
+    }
+  ],
+  "kind": 1,
+  "paddingLeft": true
+}
+
+  [foo ? bar : "c"] = false;
+                   ^
+{
+  "position": {
+    "line": 4,
+    "character": 19
+  },
+  "label": [
+    {
+      "value": ": "
+    },
+    {
+      "value": "boolean"
+    }
+  ],
+  "kind": 1,
+  "paddingLeft": true
+}
