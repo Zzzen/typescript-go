@@ -1,6 +1,9 @@
 package printer
 
-import "github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
+import (
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
+)
 
 // Externally opaque interface for printing text
 type EmitTextWriter interface {
@@ -25,7 +28,7 @@ type EmitTextWriter interface {
 	WriteLiteral(s string)
 	GetTextPos() int
 	GetLine() int
-	GetColumn() int
+	GetColumn() core.UTF16Offset
 	GetIndent() int
 	IsAtStartOfLine() bool
 	HasTrailingComment() bool
