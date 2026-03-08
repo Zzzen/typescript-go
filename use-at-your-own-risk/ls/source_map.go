@@ -2,7 +2,6 @@ package ls
 
 import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
-	"github.com/Zzzen/typescript-go/use-at-your-own-risk/debug"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsconv"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/outputpaths"
@@ -20,13 +19,14 @@ func (l *LanguageService) getMappedLocation(fileName string, fileRange core.Text
 		}
 	}
 	endPos := l.tryGetSourcePosition(fileName, core.TextPos(fileRange.End()))
-	if endPos == nil {
+	if endPos == nil || endPos.FileName != startPos.FileName {
+		// When end doesn't map (or maps to a different source file, e.g. in a .d.ts with a
+		// multi-source source map from --outFile compilation), approximate the end position.
 		endPos = &sourcemap.DocumentPosition{
 			FileName: startPos.FileName,
 			Pos:      startPos.Pos + fileRange.Len(),
 		}
 	}
-	debug.Assert(endPos.FileName == startPos.FileName, "start and end should be in same file")
 	newRange := core.NewTextRange(startPos.Pos, endPos.Pos)
 	lspRange := l.createLspRangeFromRange(newRange, l.getScript(startPos.FileName))
 	return lsproto.Location{

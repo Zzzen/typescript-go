@@ -688,6 +688,14 @@ func (p *Program) verifyCompilerOptions() {
 		createRemovedOptionDiagnostic("alwaysStrict", "false", "")
 	}
 
+	if options.ESModuleInterop.IsFalse() {
+		createRemovedOptionDiagnostic("esModuleInterop", "false", "")
+	}
+
+	if options.AllowSyntheticDefaultImports.IsFalse() {
+		createRemovedOptionDiagnostic("allowSyntheticDefaultImports", "false", "")
+	}
+
 	if options.StrictPropertyInitialization.IsTrue() && !options.GetStrictOptionValue(options.StrictNullChecks) {
 		createDiagnosticForOptionName(diagnostics.Option_0_cannot_be_specified_without_specifying_option_1, "strictPropertyInitialization", "strictNullChecks")
 	}
@@ -1386,7 +1394,7 @@ type WriteFileData struct {
 	SkippedDtsWrite bool
 }
 
-type WriteFile func(fileName string, text string, writeByteOrderMark bool, data *WriteFileData) error
+type WriteFile func(fileName string, text string, data *WriteFileData) error
 
 type EmitOptions struct {
 	TargetSourceFile *ast.SourceFile // Single file to emit. If `nil`, emits all files

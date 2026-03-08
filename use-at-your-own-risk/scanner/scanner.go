@@ -217,9 +217,10 @@ type Scanner struct {
 	scriptKind      core.ScriptKind
 	ScannerState
 
-	numberCache    map[string]string
-	hexNumberCache map[string]string
-	hexDigitCache  map[string]string
+	containsNonASCII bool
+	numberCache      map[string]string
+	hexNumberCache   map[string]string
+	hexDigitCache    map[string]string
 }
 
 func defaultScanner() Scanner {
@@ -327,6 +328,13 @@ func (scanner *Scanner) SetSkipTrivia(skip bool) {
 
 func (s *Scanner) HasUnicodeEscape() bool {
 	return s.tokenFlags&ast.TokenFlagsUnicodeEscape != 0
+}
+
+// ContainsNonASCII returns true if the scanner encountered any non-ASCII bytes
+// during scanning. This is useful for determining whether UTF-8 byte offsets
+// may differ from UTF-16 code unit offsets.
+func (s *Scanner) ContainsNonASCII() bool {
+	return s.containsNonASCII
 }
 
 func (s *Scanner) HasExtendedUnicodeEscape() bool {
@@ -439,7 +447,11 @@ func (s *Scanner) charAt(offset int) rune {
 }
 
 func (s *Scanner) charAndSize() (rune, int) {
-	return utf8.DecodeRuneInString(s.text[s.pos:])
+	r, size := utf8.DecodeRuneInString(s.text[s.pos:])
+	if size > 1 {
+		s.containsNonASCII = true
+	}
+	return r, size
 }
 
 func (s *Scanner) Scan() ast.Kind {
@@ -1244,6 +1256,12 @@ func (s *Scanner) ScanJsxIdentifier() ast.Kind {
 
 func (s *Scanner) ScanJsxAttributeValue() ast.Kind {
 	s.fullStartPos = s.pos
+	// Skip whitespace between '=' and the value so tokenStart lands on the
+	// opening quote, not on trivia.
+	for ch, size := s.charAndSize(); size > 0 && stringutil.IsWhiteSpaceLike(ch); ch, size = s.charAndSize() {
+		s.pos += size
+	}
+	s.tokenStart = s.pos
 	switch s.char() {
 	case '"', '\'':
 		s.tokenValue = s.scanString(true /*jsxAttributeString*/)
@@ -1275,15 +1293,11 @@ func (s *Scanner) ScanJSDocCommentTextToken(inBackticks bool) ast.Kind {
 			if ch == '{' {
 				break
 			} else if ch == '@' && s.pos >= 0 {
-				// @ doesn't start a new tag inside ``, and elsewhere, only after whitespace and before non-whitespace
+				// @ doesn't start a new tag inside ``, and elsewhere, only after whitespace and before identifier
 				previous, _ := utf8.DecodeLastRuneInString(s.text[:s.pos])
 				if stringutil.IsWhiteSpaceSingleLine(previous) {
-					if s.pos+size >= len(s.text) {
-						// EOF counts as non-whitespace
-						break
-					}
 					next, _ := utf8.DecodeRuneInString(s.text[s.pos+size:])
-					if !stringutil.IsWhiteSpaceLike(next) {
+					if IsIdentifierStart(next) {
 						break
 					}
 				}
@@ -1297,6 +1311,17 @@ func (s *Scanner) ScanJSDocCommentTextToken(inBackticks bool) ast.Kind {
 	s.tokenValue = s.text[s.tokenStart:s.pos]
 	s.token = ast.KindJSDocCommentTextToken
 	return s.token
+}
+
+// Peek at the character at the current scanner position (expected to be right after '@')
+// and return true if a JSDoc tag can follow. Identifier starts indicate a tag name.
+// Whitespace, newlines, and EOF are also accepted to support incomplete tags for code completion.
+func (s *Scanner) CanFollowJSDocAt() bool {
+	if s.pos >= len(s.text) {
+		return true
+	}
+	ch, _ := utf8.DecodeRuneInString(s.text[s.pos:])
+	return IsIdentifierStart(ch) || stringutil.IsWhiteSpaceSingleLine(ch) || stringutil.IsLineBreak(ch)
 }
 
 func (s *Scanner) ScanJSDocToken() ast.Kind {
