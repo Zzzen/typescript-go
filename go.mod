@@ -7,7 +7,7 @@ require (
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/go-json-experiment/json v0.0.0-20260214004413-d219187c3433
 	github.com/google/go-cmp v0.7.0
-	github.com/microsoft/typescript-go v0.0.0-20260307191936-ed600fd7c958
+	github.com/microsoft/typescript-go v0.0.0-20260313230633-c0e5d35a6f8f
 	github.com/peter-evans/patience v0.3.0
 	github.com/zeebo/xxh3 v1.1.0
 	golang.org/x/sync v0.19.0
