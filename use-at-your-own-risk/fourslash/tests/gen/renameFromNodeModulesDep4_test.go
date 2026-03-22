@@ -6,7 +6,9 @@ package fourslash_test
 import (
 	"testing"
 
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
 
@@ -30,15 +32,15 @@ export const h: string;
 	f, done := fourslash.NewFourslash(t, nil /*capabilities*/, content)
 	defer done()
 	f.GoToMarker(t, "ok")
-	f.VerifyRenameSucceeded(t, nil /*preferences*/)
-	f.VerifyRenameSucceeded(t, nil /*preferences*/)
+	f.VerifyRenameSucceeded(t, &lsutil.UserPreferences{UseAliasesForRename: core.TSTrue})
+	f.VerifyRenameSucceeded(t, &lsutil.UserPreferences{UseAliasesForRename: core.TSFalse})
 	f.GoToMarker(t, "ok2")
-	f.VerifyRenameSucceeded(t, nil /*preferences*/)
-	f.VerifyRenameSucceeded(t, nil /*preferences*/)
+	f.VerifyRenameSucceeded(t, &lsutil.UserPreferences{UseAliasesForRename: core.TSTrue})
+	f.VerifyRenameSucceeded(t, &lsutil.UserPreferences{UseAliasesForRename: core.TSFalse})
 	f.GoToMarker(t, "notOk")
-	f.VerifyRenameFailed(t, nil /*preferences*/)
-	f.VerifyRenameFailed(t, nil /*preferences*/)
+	f.VerifyRenameFailed(t, &lsutil.UserPreferences{UseAliasesForRename: core.TSTrue})
+	f.VerifyRenameFailed(t, &lsutil.UserPreferences{UseAliasesForRename: core.TSFalse})
 	f.GoToMarker(t, "okWithAlias")
-	f.VerifyRenameSucceeded(t, nil /*preferences*/)
-	f.VerifyRenameFailed(t, nil /*preferences*/)
+	f.VerifyRenameSucceeded(t, &lsutil.UserPreferences{UseAliasesForRename: core.TSTrue})
+	f.VerifyRenameFailed(t, &lsutil.UserPreferences{UseAliasesForRename: core.TSFalse})
 }
