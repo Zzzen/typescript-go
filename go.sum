@@ -8,8 +8,8 @@ github.com/klauspost/cpuid/v2 v2.2.10 h1:tBs3QSyvjDyFTq3uoc/9xFpCuOsJQFNPiAhYdw2
 github.com/klauspost/cpuid/v2 v2.2.10/go.mod h1:hqwkgyIinND0mEev00jJYCxPNVRVXFQeu1XKlok6oO0=
 github.com/matryer/moq v0.6.0 h1:FCccG09c3o4cg3gnrZ+7ty5Pa/sjmN24BMHp/0pwhjQ=
 github.com/matryer/moq v0.6.0/go.mod h1:iEVhY/XBwFG/nbRyEf0oV+SqnTHZJ5wectzx7yT+y98=
-github.com/microsoft/typescript-go v0.0.0-20260328164110-98545e9a3427 h1:GnacmMxkolLX5ZagJA8Oya3A5KTDIi34Apn8CE1mnqM=
-github.com/microsoft/typescript-go v0.0.0-20260328164110-98545e9a3427/go.mod h1:oYmpO2cY7xwgwL/j2IEX9XbBxR5GxWiMWHZRTwLLOEM=
+github.com/microsoft/typescript-go v0.0.0-20260404173030-c0703e66b68b h1:t6IXgwEQYJ2SVopjuo7sOnnc7GTd/j2fMVaHm0EDX6s=
+github.com/microsoft/typescript-go v0.0.0-20260404173030-c0703e66b68b/go.mod h1:oYmpO2cY7xwgwL/j2IEX9XbBxR5GxWiMWHZRTwLLOEM=
 github.com/peter-evans/patience v0.3.0 h1:rX0JdJeepqdQl1Sk9c9uvorjYYzL2TfgLX1adqYm9cA=
 github.com/peter-evans/patience v0.3.0/go.mod h1:Kmxu5sY1NmBLFSStvXjX1wS9mIv7wMcP/ubucyMOAu0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

@@ -6,7 +6,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/go-json-experiment/json v0.0.0-20260214004413-d219187c3433
 	github.com/google/go-cmp v0.7.0
-	github.com/microsoft/typescript-go v0.0.0-20260328164110-98545e9a3427
+	github.com/microsoft/typescript-go v0.0.0-20260404173030-c0703e66b68b
 	github.com/peter-evans/patience v0.3.0
 	github.com/zeebo/xxh3 v1.1.0
 	golang.org/x/sync v0.20.0
