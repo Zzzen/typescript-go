@@ -71,8 +71,8 @@ func (l *LanguageService) getQuickInfoAndDocumentationForSymbol(c *checker.Check
 
 func (l *LanguageService) getDocumentationFromDeclaration(c *checker.Checker, symbol *ast.Symbol, declaration *ast.Node, location *ast.Node, contentFormat lsproto.MarkupKind, commentOnly bool) string {
 	if declaration == nil {
-		// For mapped type symbols with @inheritDoc on the mapped type, synthesize documentation
-		// from the mapped type's declarations and the syntheticOrigin's declarations.
+		// For mapped type symbols with @inheritDoc on the mapped type, collect documentation
+		// by considering the mapped type's declarations and the syntheticOrigin's declarations.
 		if symbol != nil && symbol.CheckFlags&ast.CheckFlagsMapped != 0 &&
 			symbol.Parent != nil && len(symbol.Parent.Declarations) > 0 &&
 			core.Some(symbol.Parent.Declarations, hasJSDocInheritDocTag) {

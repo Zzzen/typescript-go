@@ -42,15 +42,15 @@ interface Person {
 type LazyPerson = Getters<Person>;
 
 const me: LazyPerson = {
-  // ❌ When hovering here, the documentation is NOT displayed.
+  // ✅ When hovering here, the documentation is displayed, as it should.
   /*1*/getName: () => "Jake Carter",
-  // ❌ When hovering here, the documentation is NOT displayed.
+  // ✅ When hovering here, the documentation is displayed, as it should.
   /*2*/getAge: () => 35,
-  // ❌ When hovering here, the documentation is NOT displayed.
+  // ✅ When hovering here, the documentation is displayed, as it should.
   /*3*/getLocation: () => "United States",
 };
 
-// ❌ When hovering here, the documentation is NOT displayed.
+// ✅ When hovering here, the documentation is displayed, as it should.
 me./*4*/getName();`
 	f, done := fourslash.NewFourslash(t, nil /*capabilities*/, content)
 	defer done()

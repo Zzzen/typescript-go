@@ -22,7 +22,7 @@ type Y = {
     d: string;
 }
 
-type T50 = Getters<Y>;  // { getFoo: () => string, getBar: () => number }
+type T50 = Getters<Y>;
 
 declare let y: T50;
 y.get/*3*/D;`

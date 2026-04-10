@@ -3120,7 +3120,7 @@ func (p *Parser) nextIsStartOfMappedType() bool {
 
 func (p *Parser) parseMappedType() *ast.Node {
 	pos := p.nodePos()
-	hasJSDoc := p.jsdocScannerInfo()
+	jsdocInfo := p.jsdocScannerInfo()
 	p.parseExpected(ast.KindOpenBraceToken)
 	var readonlyToken *ast.Node // ReadonlyKeyword | PlusToken | MinusToken
 	if p.token == ast.KindReadonlyKeyword || p.token == ast.KindPlusToken || p.token == ast.KindMinusToken {
@@ -3148,7 +3148,7 @@ func (p *Parser) parseMappedType() *ast.Node {
 	members := p.parseList(PCTypeMembers, (*Parser).parseTypeMember)
 	p.parseExpected(ast.KindCloseBraceToken)
 	result := p.finishNode(p.factory.NewMappedTypeNode(readonlyToken, typeParameter, nameType, questionToken, typeNode, members), pos)
-	p.withJSDoc(result, hasJSDoc)
+	p.withJSDoc(result, jsdocInfo)
 	return result
 }
 
