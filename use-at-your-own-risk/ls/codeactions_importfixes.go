@@ -10,6 +10,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/locale"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/autoimport"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
@@ -46,9 +47,10 @@ const (
 
 // ImportFixProvider is the CodeFixProvider for import-related fixes
 var ImportFixProvider = &CodeFixProvider{
-	ErrorCodes:     importFixErrorCodes,
-	GetCodeActions: getImportCodeActions,
-	FixIds:         []string{importFixID},
+	ErrorCodes:        importFixErrorCodes,
+	GetCodeActions:    getImportCodeActions,
+	FixIds:            []string{importFixID},
+	GetAllCodeActions: getAllImportCodeActions,
 }
 
 type fixInfo struct {
@@ -79,11 +81,89 @@ func getImportCodeActions(ctx context.Context, fixContext *CodeFixContext) ([]Co
 		)
 
 		actions = append(actions, CodeAction{
-			Description: description,
-			Changes:     edits,
+			Description:       description,
+			Changes:           edits,
+			FixID:             importFixID,
+			FixAllDescription: diagnostics.Add_all_missing_imports.Localize(locale.FromContext(ctx)),
 		})
 	}
 	return actions, nil
+}
+
+func getAllImportCodeActions(ctx context.Context, fixContext *CodeFixContext) (*CombinedCodeActions, error) {
+	if tspath.IsDynamicFileName(fixContext.SourceFile.FileName()) {
+		return nil, nil
+	}
+
+	allDiagnostics := fixContext.Program.GetSemanticDiagnostics(ctx, fixContext.SourceFile)
+
+	var importDiags []*ast.Diagnostic
+	for _, diag := range allDiagnostics {
+		if containsErrorCode(importFixErrorCodes, diag.Code()) {
+			importDiags = append(importDiags, diag)
+		}
+	}
+
+	if len(importDiags) == 0 {
+		return nil, nil
+	}
+
+	view, err := fixContext.LS.getPreparedAutoImportView(fixContext.SourceFile)
+	if err != nil {
+		return nil, err
+	}
+	if view == nil {
+		view = fixContext.LS.getCurrentAutoImportView(fixContext.SourceFile)
+	}
+
+	ch, done := fixContext.Program.GetTypeChecker(ctx)
+	defer done()
+
+	importAdder := autoimport.NewImportAdder(
+		ctx,
+		fixContext.Program,
+		ch,
+		fixContext.SourceFile,
+		view,
+		fixContext.LS.FormatOptions(),
+		fixContext.LS.converters,
+		fixContext.LS.UserPreferences(),
+	)
+
+	for _, diag := range importDiags {
+		if err := addImportFromDiagnostic(ctx, importAdder, diag, fixContext); err != nil {
+			return nil, err
+		}
+	}
+
+	if !importAdder.HasFixes() {
+		return nil, nil
+	}
+
+	return &CombinedCodeActions{
+		Description: diagnostics.Add_all_missing_imports.Localize(locale.FromContext(ctx)),
+		Changes:     importAdder.Edits(),
+	}, nil
+}
+
+// addImportFromDiagnostic finds the best import fix for a diagnostic and adds it to the adder.
+func addImportFromDiagnostic(ctx context.Context, importAdder autoimport.ImportAdder, diag *ast.Diagnostic, fixContext *CodeFixContext) error {
+	diagFixContext := &CodeFixContext{
+		SourceFile: fixContext.SourceFile,
+		Span:       core.NewTextRange(diag.Pos(), diag.End()),
+		ErrorCode:  diag.Code(),
+		Program:    fixContext.Program,
+		LS:         fixContext.LS,
+	}
+
+	infos, err := getFixInfos(ctx, diagFixContext, diag.Code(), diag.Pos())
+	if err != nil {
+		return err
+	}
+	if len(infos) > 0 {
+		importAdder.AddImportFix(infos[0].fix)
+	}
+	return nil
 }
 
 func getFixInfos(ctx context.Context, fixContext *CodeFixContext, errorCode int32, pos int) ([]*fixInfo, error) {

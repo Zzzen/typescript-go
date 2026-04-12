@@ -6,6 +6,7 @@ package fourslash_test
 import (
 	"testing"
 
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -23,7 +24,7 @@ func TestFormatSelectionPreserveTrailingWhitespace(t *testing.T) {
 	f, done := fourslash.NewFourslash(t, nil /*capabilities*/, content)
 	defer done()
 	opts154 := f.GetOptions()
-	opts154.FormatCodeSettings.TrimTrailingWhitespace = false
+	opts154.FormatCodeSettings.TrimTrailingWhitespace = core.TSFalse
 	f.Configure(t, opts154)
 	f.FormatSelection(t, "begin", "end")
 	f.VerifyCurrentFileContent(t, `

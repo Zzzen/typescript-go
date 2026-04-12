@@ -3,6 +3,7 @@ package fourslash_test
 import (
 	"testing"
 
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
@@ -26,7 +27,7 @@ export const someName: number;
 	f.VerifyWorkspaceSymbol(t, []*fourslash.VerifyWorkspaceSymbolCase{
 		{
 			Pattern:     "weirdName",
-			Preferences: &lsutil.UserPreferences{ExcludeLibrarySymbolsInNavTo: false},
+			Preferences: &lsutil.UserPreferences{ExcludeLibrarySymbolsInNavTo: core.TSFalse},
 			Exact: new([]*lsproto.SymbolInformation{
 				{
 					Name:     "weirdName",
