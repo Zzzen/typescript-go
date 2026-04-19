@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ast"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/binder"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/checker"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
@@ -203,6 +204,7 @@ func (t *toProgramSnapshot) handlePendingCheck() {
 }
 
 func fileAffectsGlobalScope(file *ast.SourceFile) bool {
+	binder.BindSourceFile(file)
 	// if file contains anything that augments to global scope we need to build them as if
 	// they are global files as well as module
 	if core.Some(file.ModuleAugmentations, func(augmentation *ast.ModuleName) bool {
