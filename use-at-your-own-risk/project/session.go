@@ -135,6 +135,13 @@ type Session struct {
 	diagnosticsRefreshCancel context.CancelFunc
 	diagnosticsRefreshMu     sync.Mutex
 
+	// warmAutoImportCancel is the cancelation function for a running
+	// auto-import cache warming task. It is cancelled on file opens,
+	// closes, changes, watched-file changes, new auto-import warming
+	// requests, and when the session closes.
+	warmAutoImportCancel context.CancelFunc
+	warmAutoImportMu     sync.Mutex
+
 	// idleCacheCleanTimer is a resettable timer for scheduling idle disk
 	// cache cleans. The timer resets on any file event (open, close,
 	// change, save, watch) and fires after 30 seconds of inactivity.
@@ -261,6 +268,7 @@ func (s *Session) Configure(config lsutil.UserPreferences) {
 	s.refreshInlayHintsIfNeeded(oldConfig, config)
 	s.refreshCodeLensIfNeeded(oldConfig, config)
 	s.refreshDiagnosticsIfNeeded(oldConfig, config)
+	s.refreshATAIfNeeded(oldConfig, config)
 }
 
 func (s *Session) InitializeWithUserConfig(config lsutil.UserPreferences) {
@@ -270,6 +278,7 @@ func (s *Session) InitializeWithUserConfig(config lsutil.UserPreferences) {
 
 func (s *Session) DidOpenFile(ctx context.Context, uri lsproto.DocumentUri, version int32, content string, languageKind lsproto.LanguageKind) {
 	s.cancelDiagnosticsRefresh()
+	s.cancelWarmAutoImportCache()
 	s.scheduleIdleCacheClean()
 	s.snapshotUpdateMu.Lock()
 	defer s.snapshotUpdateMu.Unlock()
@@ -294,6 +303,7 @@ func (s *Session) DidOpenFile(ctx context.Context, uri lsproto.DocumentUri, vers
 
 func (s *Session) DidCloseFile(ctx context.Context, uri lsproto.DocumentUri) {
 	s.cancelDiagnosticsRefresh()
+	s.cancelWarmAutoImportCache()
 	s.scheduleIdleCacheClean()
 	s.pendingFileChangesMu.Lock()
 	defer s.pendingFileChangesMu.Unlock()
@@ -305,6 +315,7 @@ func (s *Session) DidCloseFile(ctx context.Context, uri lsproto.DocumentUri) {
 
 func (s *Session) DidChangeFile(ctx context.Context, uri lsproto.DocumentUri, version int32, changes []lsproto.TextDocumentContentChangePartialOrWholeDocument) {
 	s.cancelDiagnosticsRefresh()
+	s.cancelWarmAutoImportCache()
 	s.scheduleIdleCacheClean()
 	s.pendingFileChangesMu.Lock()
 	defer s.pendingFileChangesMu.Unlock()
@@ -353,6 +364,7 @@ func (s *Session) DidChangeWatchedFiles(ctx context.Context, changes []*lsproto.
 
 	// Schedule a debounced diagnostics refresh
 	s.ScheduleDiagnosticsRefresh()
+	s.cancelWarmAutoImportCache()
 	s.scheduleIdleCacheClean()
 }
 
@@ -413,6 +425,15 @@ func (s *Session) cancelDiagnosticsRefresh() {
 		s.diagnosticsRefreshCancel()
 		s.logger.Log("Canceled scheduled diagnostics refresh")
 		s.diagnosticsRefreshCancel = nil
+	}
+}
+
+func (s *Session) cancelWarmAutoImportCache() {
+	s.warmAutoImportMu.Lock()
+	defer s.warmAutoImportMu.Unlock()
+	if s.warmAutoImportCancel != nil {
+		s.warmAutoImportCancel()
+		s.warmAutoImportCancel = nil
 	}
 }
 
@@ -1080,7 +1101,7 @@ func (s *Session) updateSnapshot(ctx context.Context, overlays map[tspath.Path]*
 	s.snapshotMu.Unlock()
 
 	// Enqueue ATA updates if needed
-	if s.typingsInstaller != nil {
+	if s.typingsInstaller != nil && !s.Config().IsATADisabled() {
 		s.triggerATAForUpdatedProjects(newSnapshot)
 	}
 
@@ -1245,6 +1266,8 @@ func (s *Session) updateWatches(oldSnapshot *Snapshot, newSnapshot *Snapshot) er
 func (s *Session) Close() {
 	// Cancel any pending diagnostics refresh
 	s.cancelDiagnosticsRefresh()
+	// Cancel any pending auto-import cache warming
+	s.cancelWarmAutoImportCache()
 	// Cancel any pending idle cache clean
 	s.cancelIdleCacheClean()
 	// Cancel periodic performance telemetry
@@ -1431,6 +1454,14 @@ func (s *Session) refreshDiagnosticsIfNeeded(oldPrefs lsutil.UserPreferences, ne
 	}
 }
 
+func (s *Session) refreshATAIfNeeded(oldPrefs lsutil.UserPreferences, newPrefs lsutil.UserPreferences) {
+	if oldPrefs.IsATADisabled() && !newPrefs.IsATADisabled() {
+		// ATA was re-enabled; schedule a diagnostics refresh so the next snapshot update
+		// re-triggers ATA for existing projects with the new setting.
+		s.ScheduleDiagnosticsRefresh()
+	}
+}
+
 func (s *Session) publishProgramDiagnostics(oldSnapshot *Snapshot, newSnapshot *Snapshot) {
 	if !s.options.PushDiagnosticsEnabled {
 		return
@@ -1590,6 +1621,56 @@ func (s *Session) warmAutoImportCache(ctx context.Context, change SnapshotChange
 		) {
 			return
 		}
-		_, _ = s.GetCurrentLanguageServiceWithAutoImports(ctx, changedFile)
+
+		// Cancel any previous auto-import warming and create a new cancellable context.
+		// Only publish the new cancel func if the derived context is still active,
+		// and make the stored cancel func a no-op once that warming task is done.
+		s.warmAutoImportMu.Lock()
+		if s.warmAutoImportCancel != nil {
+			s.warmAutoImportCancel()
+		}
+		warmCtx, cancel := context.WithCancel(ctx)
+		if warmCtx.Err() == nil {
+			s.warmAutoImportCancel = func() {
+				if warmCtx.Err() != nil {
+					return
+				}
+				s.logger.Logf("Cancelling auto-import warming for file %s", changedFile.FileName())
+				cancel()
+			}
+		}
+		s.warmAutoImportMu.Unlock()
+
+		if warmCtx.Err() != nil {
+			cancel()
+			return
+		}
+		defer cancel()
+
+		// Clone the snapshot with auto-imports using warmCtx so the expensive
+		// extraction work is cancelled if a file change arrives.
+		if !newSnapshot.tryRef() {
+			return
+		}
+		defer newSnapshot.Deref(s)
+
+		warmChange := SnapshotChange{
+			reason: UpdateReasonRequestedLanguageServiceWithAutoImports,
+			ResourceRequest: ResourceRequest{
+				Documents:   []lsproto.DocumentUri{changedFile},
+				AutoImports: changedFile,
+			},
+		}
+		clonedSnapshot := newSnapshot.Clone(warmCtx, warmChange, newSnapshot.fs.overlays, s)
+
+		// If cancelled during clone, discard the incomplete result.
+		if warmCtx.Err() != nil {
+			clonedSnapshot.Deref(s)
+			return
+		}
+
+		// Conditionally adopt: if the session hasn't moved past newSnapshot,
+		// promote the clone so future requests benefit from the warmed cache.
+		s.adoptSnapshotChange(newSnapshot, clonedSnapshot)
 	}
 }

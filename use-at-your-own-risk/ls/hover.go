@@ -17,7 +17,7 @@ import (
 
 const (
 	symbolFormatFlags = checker.SymbolFormatFlagsWriteTypeParametersOrArguments | checker.SymbolFormatFlagsUseOnlyExternalAliasing | checker.SymbolFormatFlagsAllowAnyNodeKind | checker.SymbolFormatFlagsUseAliasDefinedOutsideCurrentScope
-	typeFormatFlags   = checker.TypeFormatFlagsUseAliasDefinedOutsideCurrentScope
+	typeFormatFlags   = checker.TypeFormatFlagsUseAliasDefinedOutsideCurrentScope | checker.TypeFormatFlagsUseInstantiationExpressions
 )
 
 func (l *LanguageService) ProvideHover(ctx context.Context, params *lsproto.HoverParams) (lsproto.HoverResponse, error) {
@@ -283,7 +283,7 @@ func getCommentText(comments []*ast.Node) string {
 func formatQuickInfo(quickInfo string) string {
 	var b strings.Builder
 	b.Grow(32)
-	writeCode(&b, "tsx", quickInfo)
+	writeCode(&b, "typescript", quickInfo)
 	return b.String()
 }
 

@@ -25,6 +25,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/modulespecifiers"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/stringutil"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tracing"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 	"github.com/zeebo/xxh3"
@@ -233,9 +234,10 @@ type IterationTypesKey struct {
 // PropertiesTypesKey
 
 type PropertiesTypesKey struct {
-	typeId        TypeId
-	include       TypeFlags
-	includeOrigin bool
+	typeId            TypeId
+	include           TypeFlags
+	includeOrigin     bool
+	unresolvedMembers bool
 }
 
 // NonExistentPropertyKey
@@ -883,14 +885,16 @@ type Checker struct {
 	nonExistentProperties                       collections.Set[NonExistentPropertyKey]
 	deferredDiagnosticCallbacks                 []func()
 
-	mu sync.Mutex
+	mu     sync.Mutex
+	tracer *Tracer // Optional tracer for trace events and type recording (for --generateTrace)
 }
 
-func NewChecker(program Program) (*Checker, *sync.Mutex) {
+func NewChecker(program Program, tracer *Tracer) (*Checker, *sync.Mutex) {
 	program.BindSourceFiles()
 
 	c := &Checker{}
 	c.id = nextCheckerID.Add(1)
+	c.tracer = tracer
 	c.program = program
 	c.compilerOptions = program.Options()
 	c.files = program.SourceFiles()
@@ -2138,6 +2142,9 @@ func (c *Checker) checkSourceFile(ctx context.Context, sourceFile *ast.SourceFil
 	links := c.sourceFileLinks.Get(sourceFile)
 	if !links.typeChecked {
 		c.saveDeferredDiagnostics = true
+		if tr := c.tracer; tr != nil {
+			defer tr.Push(tracing.PhaseCheck, "checkSourceFile", map[string]any{"path": sourceFile.FileName()}, true)()
+		}
 		// Grammar checking
 		c.checkGrammarSourceFile(sourceFile)
 		c.renamedBindingElementsInTypes = nil
@@ -2440,6 +2447,9 @@ func (c *Checker) checkDeferredNodes(context *ast.SourceFile) {
 }
 
 func (c *Checker) checkDeferredNode(node *ast.Node) {
+	if tr := c.tracer; tr != nil {
+		defer tr.Push(tracing.PhaseCheck, "checkDeferredNode", map[string]any{"kind": node.Kind, "pos": node.Pos(), "end": node.End(), "path": ast.GetSourceFileOfNode(node).FileName()}, false)()
+	}
 	saveCurrentNode := c.currentNode
 	c.currentNode = node
 	c.instantiationCount = 0
@@ -2569,6 +2579,9 @@ func (c *Checker) checkTypeParameterDeferred(node *ast.Node) {
 			if ast.IsTypeOrJSTypeAliasDeclaration(node.Parent) && c.getDeclaredTypeOfSymbol(symbol).objectFlags&(ObjectFlagsAnonymous|ObjectFlagsMapped) == 0 {
 				c.error(node, diagnostics.Variance_annotations_are_only_supported_in_type_aliases_for_object_function_constructor_and_mapped_types)
 			} else if modifiers == ast.ModifierFlagsIn || modifiers == ast.ModifierFlagsOut {
+				if tr := c.tracer; tr != nil {
+					defer tr.Push(tracing.PhaseCheckTypes, "checkTypeParameterDeferred", map[string]any{"parent": c.getDeclaredTypeOfSymbol(symbol).id, "id": typeParameter.id}, false)()
+				}
 				source := c.createMarkerType(symbol, typeParameter, core.IfElse(modifiers == ast.ModifierFlagsOut, c.markerSubTypeForCheck, c.markerSuperTypeForCheck))
 				target := c.createMarkerType(symbol, typeParameter, core.IfElse(modifiers == ast.ModifierFlagsOut, c.markerSuperTypeForCheck, c.markerSubTypeForCheck))
 				saveVarianceTypeParameter := typeParameter
@@ -5613,6 +5626,9 @@ func (c *Checker) checkVariableDeclarationList(node *ast.Node) {
 }
 
 func (c *Checker) checkVariableDeclaration(node *ast.Node) {
+	if tr := c.tracer; tr != nil {
+		defer tr.Push(tracing.PhaseCheck, "checkVariableDeclaration", map[string]any{"kind": node.Kind, "pos": node.Pos(), "end": node.End(), "path": ast.GetSourceFileOfNode(node).FileName()}, false)()
+	}
 	c.checkGrammarVariableDeclaration(node.AsVariableDeclaration())
 	c.checkVariableLikeDeclaration(node)
 }
@@ -6093,7 +6109,20 @@ func (c *Checker) getIterationTypesOfIterable(t *Type, use IterationUse, errorNo
 
 func (c *Checker) getIterationTypesOfIterableWorker(t *Type, use IterationUse, errorNode *ast.Node, noCache bool) IterationTypes {
 	if t.flags&TypeFlagsUnion != 0 {
-		return c.combineIterationTypes(core.Map(t.Types(), func(t *Type) IterationTypes { return c.getIterationTypesOfIterableWorker(t, use, errorNode, noCache) }))
+		allIterationTypes := make([]IterationTypes, 0, len(t.Types()))
+		for _, constituent := range t.Types() {
+			iterationTypes := c.getIterationTypesOfIterableWorker(constituent, use, nil, noCache)
+			if !iterationTypes.hasTypes() {
+				if errorNode != nil {
+					c.addDeferredDiagnostic(func() {
+						c.reportTypeNotIterableError(errorNode, t, use&IterationUseAllowsAsyncIterablesFlag != 0)
+					})
+				}
+				return IterationTypes{}
+			}
+			allIterationTypes = append(allIterationTypes, iterationTypes)
+		}
+		return c.combineIterationTypes(allIterationTypes)
 	}
 	var diags []*ast.Diagnostic
 	if use&IterationUseAllowsAsyncIterablesFlag != 0 {
@@ -6771,10 +6800,9 @@ func (c *Checker) getDeclarationSpaces(node *ast.Declaration) DeclarationSpaces 
 			expression = node.AsBinaryExpression().Right
 		}
 		// Export assigned entity name expressions act as aliases and should fall through, otherwise they export values.
-		if !ast.IsEntityNameExpression(expression) {
+		if !ast.IsEntityNameExpression(expression) || c.getSymbolOfDeclaration(node).Flags&ast.SymbolFlagsAlias == 0 {
 			return DeclarationSpacesExportValue
 		}
-		node = expression
 		// The below options all declare an Alias, which is allowed to merge with other values within the importing module.
 		fallthrough
 	case ast.KindImportEqualsDeclaration, ast.KindNamespaceImport, ast.KindImportClause:
@@ -7348,6 +7376,9 @@ func (c *Checker) checkExpression(node *ast.Node) *Type {
 }
 
 func (c *Checker) checkExpressionEx(node *ast.Node, checkMode CheckMode) *Type {
+	if tr := c.tracer; tr != nil {
+		defer tr.Push(tracing.PhaseCheck, "checkExpression", map[string]any{"kind": node.Kind, "pos": node.Pos(), "end": node.End(), "path": ast.GetSourceFileOfNode(node).FileName()}, false)()
+	}
 	saveCurrentNode := c.currentNode
 	c.currentNode = node
 	c.instantiationCount = 0
@@ -8834,7 +8865,7 @@ func (c *Checker) chooseOverload(s *CallState, relation *Relation) *Signature {
 					continue
 				}
 			} else {
-				inferenceContext = c.newInferenceContext(candidate.typeParameters, candidate, InferenceFlagsNone /*flags*/, nil)
+				inferenceContext = c.newInferenceContext(candidate.typeParameters, candidate, core.IfElse(ast.IsInJSFile(s.node), InferenceFlagsAnyDefault, InferenceFlagsNone) /*flags*/, nil)
 				typeArgumentTypes = c.inferTypeArguments(s.node, candidate, s.args, s.argCheckMode|CheckModeSkipGenericFunctions, inferenceContext)
 				if inferenceContext.flags&InferenceFlagsSkippedGenericFunction != 0 {
 					s.argCheckMode |= CheckModeSkipGenericFunctions
@@ -9355,7 +9386,7 @@ func (c *Checker) getTypeArgumentsFromNodes(typeArgumentNodes []*ast.Node, typeP
 }
 
 func (c *Checker) inferSignatureInstantiationForOverloadFailure(node *ast.Node, typeParameters []*Type, candidate *Signature, args []*ast.Node, checkMode CheckMode) *Signature {
-	inferenceContext := c.newInferenceContext(typeParameters, candidate, InferenceFlagsNone, nil)
+	inferenceContext := c.newInferenceContext(typeParameters, candidate, core.IfElse(ast.IsInJSFile(node), InferenceFlagsAnyDefault, InferenceFlagsNone), nil)
 	typeArgumentTypes := c.inferTypeArguments(node, candidate, args, checkMode|CheckModeSkipContextSensitive|CheckModeSkipGenericFunctions, inferenceContext)
 	return c.createSignatureInstantiation(candidate, typeArgumentTypes)
 }
@@ -12147,7 +12178,9 @@ func (c *Checker) checkBinaryLikeExpression(left *ast.Node, operatorToken *ast.N
 		// control flow analysis it is possible for operands to temporarily have narrower types, and those narrower
 		// types may cause the operands to not be comparable. We don't want such errors reported (see #46475).
 		if checkMode&CheckModeTypeOnly == 0 {
-			if isLiteralExpressionOfObject(left) || isLiteralExpressionOfObject(right) {
+			if (isLiteralExpressionOfObject(left) || isLiteralExpressionOfObject(right)) &&
+				// only report for === and !== in JS, not == or !=
+				(!ast.IsInJSFile(left) || (operator == ast.KindEqualsEqualsEqualsToken || operator == ast.KindExclamationEqualsEqualsToken)) {
 				eqType := operator == ast.KindEqualsEqualsToken || operator == ast.KindEqualsEqualsEqualsToken
 				c.error(errorNode, diagnostics.This_condition_will_always_return_0_since_JavaScript_compares_objects_by_reference_not_value, core.IfElse(eqType, "false", "true"))
 			}
@@ -18655,6 +18688,7 @@ func (c *Checker) resolveObjectTypeMembers(t *Type, source *Type, typeParameters
 		}
 		c.setStructuredTypeMembers(t, members, callSignatures, constructSignatures, indexInfos)
 		thisArgument := core.LastOrNil(typeArguments)
+		t.objectFlags |= ObjectFlagsUnresolvedMembers
 		for _, baseType := range baseTypes {
 			instantiatedBaseType := baseType
 			if thisArgument != nil {
@@ -18673,6 +18707,7 @@ func (c *Checker) resolveObjectTypeMembers(t *Type, source *Type, typeParameters
 				return findIndexInfo(indexInfos, info.keyType) == nil
 			}))
 		}
+		t.objectFlags &^= ObjectFlagsUnresolvedMembers
 	}
 	c.setStructuredTypeMembers(t, members, callSignatures, constructSignatures, indexInfos)
 }
@@ -21646,6 +21681,9 @@ func (c *Checker) instantiateTypeWithAlias(t *Type, m *TypeMapper, alias *TypeAl
 		// We have reached 100 recursive type instantiations, or 5M type instantiations caused by the same statement
 		// or expression. There is a very high likelihood we're dealing with a combination of infinite generic types
 		// that perpetually generate new type identities, so we stop the recursion here by yielding the error type.
+		if tr := c.tracer; tr != nil {
+			tr.Instant(tracing.PhaseCheckTypes, "instantiateType_DepthLimit", map[string]any{"typeId": t.id, "instantiationDepth": c.instantiationDepth, "instantiationCount": c.instantiationCount})
+		}
 		c.error(c.currentNode, diagnostics.Type_instantiation_is_excessively_deep_and_possibly_infinite)
 		return c.errorType
 	}
@@ -23816,7 +23854,7 @@ func (c *Checker) getTypeFromConditionalTypeNode(node *ast.Node) *Type {
 		links.resolvedType = c.getConditionalType(root, nil /*mapper*/, false /*forConstraint*/, nil)
 		if outerTypeParameters != nil {
 			root.instantiations = make(map[CacheHashKey]*Type)
-			root.instantiations[getTypeListKey(outerTypeParameters)] = links.resolvedType
+			root.instantiations[getConditionalTypeKey(outerTypeParameters, nil /*alias*/, false /*forConstraint*/)] = links.resolvedType
 		}
 	}
 	return links.resolvedType
@@ -24533,6 +24571,9 @@ func (c *Checker) newType(flags TypeFlags, objectFlags ObjectFlags, data TypeDat
 	t.id = TypeId(c.TypeCount)
 	t.checker = c
 	t.data = data
+	if c.tracer != nil {
+		c.tracer.RecordType(t)
+	}
 	return t
 }
 
@@ -25474,6 +25515,9 @@ func (c *Checker) removeSubtypes(types []*Type, hasObjectTypes bool) []*Type {
 						// caps union types at 1000 unique object types.
 						estimatedCount := (count / (length - i)) * length
 						if estimatedCount > 1000000 {
+							if tr := c.tracer; tr != nil {
+								tr.Instant(tracing.PhaseCheckTypes, "removeSubtypes_DepthLimit", map[string]any{"estimatedCount": estimatedCount})
+							}
 							c.error(c.currentNode, diagnostics.Expression_produces_a_union_type_that_is_too_complex_to_represent)
 							return nil
 						}
@@ -26107,6 +26151,9 @@ func compareTypeIds(t1, t2 *Type) int {
 func (c *Checker) checkCrossProductUnion(types []*Type) bool {
 	size := c.getCrossProductUnionSize(types)
 	if size >= 100_000 {
+		if tr := c.tracer; tr != nil {
+			tr.Instant(tracing.PhaseCheckTypes, "checkCrossProductUnion_DepthLimit", map[string]any{"size": size})
+		}
 		c.error(c.currentNode, diagnostics.Expression_produces_a_union_type_that_is_too_complex_to_represent)
 		return false
 	}
@@ -26164,7 +26211,7 @@ func (c *Checker) getExtractStringType(t *Type) *Type {
 }
 
 func (c *Checker) getLiteralTypeFromProperties(t *Type, include TypeFlags, includeOrigin bool) *Type {
-	key := PropertiesTypesKey{typeId: t.id, include: include, includeOrigin: includeOrigin}
+	key := PropertiesTypesKey{typeId: t.id, include: include, includeOrigin: includeOrigin, unresolvedMembers: t.objectFlags&ObjectFlagsUnresolvedMembers != 0}
 	if cached, ok := c.propertiesTypes[key]; ok {
 		return cached
 	}
