@@ -60,10 +60,11 @@ type DeclarationTransformer struct {
 	resultHasExternalModuleIndicator bool
 	suppressNewDiagnosticContexts    bool
 	lateStatementReplacementMap      map[ast.NodeId]*ast.Node
-	expandoHosts                     collections.Set[ast.NodeId]
+	expandoHosts                     map[ast.NodeId]*ast.Node // store the result of transforming expando hosts so they can be inserted later if the host is actually referenced
 	rawReferencedFiles               []ReferencedFilePair
 	rawTypeReferenceDirectives       []*ast.FileReference
 	rawLibReferenceDirectives        []*ast.FileReference
+	bindingNameVisitor               *ast.NodeVisitor
 }
 
 // TODO: Convert to transformers.TransformerFactory signature to allow more automatic composition with other transforms
@@ -94,6 +95,7 @@ func NewDeclarationTransformer(host DeclarationEmitHost, context *printer.EmitCo
 		}
 	}
 	tx.NewTransformer(tx.visit, context)
+	tx.bindingNameVisitor = tx.EmitContext().NewNodeVisitor(tx.visitBindingName)
 	return tx
 }
 
@@ -250,7 +252,7 @@ func (tx *DeclarationTransformer) visitSourceFile(node *ast.SourceFile) *ast.Nod
 	tx.suppressNewDiagnosticContexts = false
 	tx.state.lateMarkedStatements = make([]*ast.Node, 0)
 	tx.lateStatementReplacementMap = make(map[ast.NodeId]*ast.Node)
-	tx.expandoHosts = collections.Set[ast.NodeId]{}
+	tx.expandoHosts = make(map[ast.NodeId]*ast.Node)
 	tx.rawReferencedFiles = make([]ReferencedFilePair, 0)
 	tx.rawTypeReferenceDirectives = make([]*ast.FileReference, 0)
 	tx.rawLibReferenceDirectives = make([]*ast.FileReference, 0)
@@ -1327,6 +1329,12 @@ func (tx *DeclarationTransformer) transformTopLevelDeclaration(input *ast.Node) 
 	if ast.IsFunctionLike(input) && tx.resolver.IsImplementationOfOverload(input) {
 		return nil
 	}
+	original := tx.EmitContext().MostOriginal(input)
+	id := ast.GetNodeId(original)
+	if n, ok := tx.expandoHosts[id]; ok {
+		return n
+	}
+
 	previousEnclosingDeclaration := tx.enclosingDeclaration
 	if isEnclosingDeclaration(input) {
 		tx.enclosingDeclaration = input
@@ -1943,7 +1951,7 @@ func (tx *DeclarationTransformer) ensureParameter(p *ast.ParameterDeclaration) *
 		p,
 		nil,
 		p.DotDotDotToken,
-		tx.filterBindingPatternInitializers(p.Name()),
+		tx.bindingNameVisitor.VisitNode(p.Name()),
 		questionToken,
 		tx.ensureType(p.AsNode(), true),
 		tx.ensureNoInitializer(p.AsNode()),
@@ -1963,35 +1971,19 @@ func (tx *DeclarationTransformer) ensureNoInitializer(node *ast.Node) *ast.Node 
 	return nil
 }
 
-func (tx *DeclarationTransformer) filterBindingPatternInitializers(node *ast.Node) *ast.Node {
-	if node.Kind == ast.KindIdentifier {
+func (tx *DeclarationTransformer) visitBindingName(node *ast.Node) *ast.Node {
+	switch node.Kind {
+	case ast.KindIdentifier, ast.KindOmittedExpression:
 		return node
-	} else {
-		// TODO: visitor to avoid always making new nodes?
-		elements := make([]*ast.Node, 0, len(node.Elements()))
-		for _, elem := range node.Elements() {
-			if elem.Kind == ast.KindOmittedExpression {
-				elements = append(elements, elem)
-				continue
-			}
-			if elem.PropertyName() != nil && ast.IsComputedPropertyName(elem.PropertyName()) && ast.IsEntityNameExpression(elem.PropertyName().Expression()) {
-				tx.checkEntityNameVisibility(elem.PropertyName().Expression(), tx.enclosingDeclaration)
-			}
-			if elem.Name() == nil {
-				elements = append(elements, elem)
-				continue
-			}
-
-			elements = append(elements, tx.Factory().UpdateBindingElement(
-				elem.AsBindingElement(),
-				elem.AsBindingElement().DotDotDotToken,
-				elem.PropertyName(),
-				tx.filterBindingPatternInitializers(elem.Name()),
-				nil,
-			))
+	case ast.KindArrayBindingPattern, ast.KindObjectBindingPattern:
+		return node.VisitEachChild(tx.bindingNameVisitor)
+	case ast.KindBindingElement:
+		if node.PropertyName() != nil && ast.IsComputedPropertyName(node.PropertyName()) && ast.IsEntityNameExpression(node.PropertyName().Expression()) {
+			tx.checkEntityNameVisibility(node.PropertyName().Expression(), tx.enclosingDeclaration)
 		}
-		elemList := tx.Factory().NewNodeList(elements)
-		return tx.Factory().UpdateBindingPattern(node.AsBindingPattern(), elemList)
+		return tx.Factory().UpdateBindingElement(node.AsBindingElement(), node.AsBindingElement().DotDotDotToken, node.PropertyName(), tx.bindingNameVisitor.VisitNode(node.Name()), nil /*initializer*/)
+	default:
+		return node
 	}
 }
 
@@ -2224,6 +2216,14 @@ func (tx *DeclarationTransformer) transformExpandoAssignment(node *ast.BinaryExp
 		return nil
 	}
 
+	if ast.IsFunctionDeclaration(declaration) && declaration.FunctionLikeData().FullSignature != nil {
+		return nil
+	}
+
+	if ast.IsVariableDeclaration(declaration) && !ast.IsFunctionLike(declaration.Initializer()) {
+		return nil // We're going to add a type, no need to dupe members with a namespace
+	}
+
 	host := declaration.Symbol()
 	if host == nil {
 		return nil
@@ -2232,6 +2232,10 @@ func (tx *DeclarationTransformer) transformExpandoAssignment(node *ast.BinaryExp
 	name := tx.Factory().NewIdentifier(ns.Text())
 	property := tx.tryGetPropertyName(left)
 	if property == "" || !scanner.IsIdentifierText(property, core.LanguageVariantStandard) {
+		return nil
+	}
+
+	if ast.IsDeclaration(declaration) && isDeclarationAndNotVisible(tx.EmitContext(), tx.resolver, declaration) {
 		return nil
 	}
 
@@ -2273,7 +2277,7 @@ func (tx *DeclarationTransformer) transformExpandoAssignment(node *ast.BinaryExp
 	if isNonContextualKeywordName {
 		namedExports := tx.Factory().NewNamedExports(tx.Factory().NewNodeList(
 			[]*ast.Node{
-				tx.Factory().NewExportSpecifier(false /*isTypeOnly*/, exportName, tx.Factory().NewIdentifier(left.Name().Text())),
+				tx.Factory().NewExportSpecifier(false /*isTypeOnly*/, exportName, tx.Factory().NewIdentifier(property)),
 			},
 		))
 		statements = append(statements, tx.Factory().NewExportDeclaration(nil /*modifiers*/, false /*isTypeOnly*/, namedExports, nil /*moduleSpecifier*/, nil /*attributes*/))
@@ -2297,7 +2301,7 @@ func (tx *DeclarationTransformer) transformExpandoHost(name *ast.Node, declarati
 	root := core.IfElse(ast.IsVariableDeclaration(declaration), declaration.Parent.Parent, declaration)
 	id := ast.GetNodeId(tx.EmitContext().MostOriginal(root))
 
-	if tx.expandoHosts.Has(id) {
+	if _, ok := tx.expandoHosts[id]; ok {
 		return
 	}
 
@@ -2333,8 +2337,12 @@ func (tx *DeclarationTransformer) transformExpandoHost(name *ast.Node, declarati
 		replacement = append(replacement, tx.Factory().NewExportAssignment(nil /*modifiers*/, false /*isExportEquals*/, nil /*typeNode*/, name))
 	}
 
-	tx.expandoHosts.Add(id)
-	tx.lateStatementReplacementMap[id] = tx.Factory().NewSyntaxList(replacement)
+	// store host result to be added to the output when it's actually visited
+	tx.expandoHosts[id] = tx.Factory().NewSyntaxList(replacement)
+	if _, ok := tx.lateStatementReplacementMap[id]; ok {
+		// host already included in output, revise it
+		tx.lateStatementReplacementMap[id] = tx.expandoHosts[id]
+	}
 }
 
 func extractExpandoHostParams(node *ast.Node) (typeParameters *ast.TypeParameterList, parameters *ast.ParameterList, asteriskToken *ast.TokenNode) {
