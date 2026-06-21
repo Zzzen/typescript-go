@@ -17,6 +17,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/execute"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/execute/incremental"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/execute/tsc"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/execute/watchmanager"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/locale"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/fsbaselineutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil/harnessutil"
@@ -317,7 +318,7 @@ func (s *TestSys) writeHeaderToBaseline(builder *strings.Builder, program *incre
 	}
 }
 
-func (s *TestSys) WatchBackend() execute.WatchBackend {
+func (s *TestSys) WatchBackend() watchmanager.WatchBackend {
 	return s.mockWatchBackend
 }
 
