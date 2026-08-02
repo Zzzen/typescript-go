@@ -12,6 +12,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/jsnum"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/scanner"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/stringutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 )
 
@@ -787,9 +788,9 @@ func (c *Checker) checkGrammarArrowFunction(node *ast.Node, file *ast.SourceFile
 	}
 
 	equalsGreaterThanToken := arrowFunc.EqualsGreaterThanToken
-	startLine := scanner.GetECMALineOfPosition(file, equalsGreaterThanToken.Pos())
-	endLine := scanner.GetECMALineOfPosition(file, equalsGreaterThanToken.End())
-	return startLine != endLine && c.grammarErrorOnNode(equalsGreaterThanToken, diagnostics.Line_terminator_not_permitted_before_arrow)
+	arrowFullText := file.Text()[equalsGreaterThanToken.Pos():equalsGreaterThanToken.End()]
+	return strings.ContainsFunc(arrowFullText, stringutil.IsLineBreak) &&
+		c.grammarErrorOnNode(equalsGreaterThanToken, diagnostics.Line_terminator_not_permitted_before_arrow)
 }
 
 func (c *Checker) checkGrammarIndexSignatureParameters(node *ast.IndexSignatureDeclaration) bool {

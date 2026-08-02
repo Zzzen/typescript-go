@@ -640,6 +640,7 @@ type Checker struct {
 	reverseHomomorphicMappedCache               map[ReverseMappedTypeKey]*Type
 	iterationTypesCache                         map[IterationTypesKey]IterationTypes
 	markerTypes                                 collections.Set[*Type]
+	resolvingExplicitTypeOfSymbol               collections.Set[*ast.Symbol]
 	undefinedSymbol                             *ast.Symbol
 	argumentsSymbol                             *ast.Symbol
 	requireSymbol                               *ast.Symbol
@@ -12285,6 +12286,10 @@ func (c *Checker) classDeclarationExtendsNull(classDecl *ast.Node) bool {
 
 func (c *Checker) checkAssertion(node *ast.Node, checkMode CheckMode) *Type {
 	if node.Kind == ast.KindTypeAssertionExpression {
+		file := ast.GetSourceFileOfNode(node)
+		if file != nil && tspath.FileExtensionIsOneOf(file.FileName(), []string{tspath.ExtensionMts, tspath.ExtensionCts}) {
+			c.grammarErrorOnNode(node, diagnostics.This_syntax_is_reserved_in_files_with_the_mts_or_cts_extension_Use_an_as_expression_instead)
+		}
 		if c.shouldCheckErasableSyntax(node) {
 			c.addDiagnostic(ast.NewDiagnostic(ast.GetSourceFileOfNode(node), core.NewTextRange(scanner.SkipTrivia(ast.GetSourceFileOfNode(node).Text(), node.Pos()), node.Expression().Pos()), diagnostics.This_syntax_is_not_allowed_when_erasableSyntaxOnly_is_enabled))
 		}
@@ -13263,6 +13268,9 @@ func (c *Checker) checkObjectLiteral(node *ast.Node, checkMode CheckMode) *Type 
 			if allPropertiesTable != nil {
 				allPropertiesTable[prop.Name] = prop
 			}
+			if ast.IsIdentifier(memberDecl.Name()) {
+				c.checkDeprecatedProperty(memberDecl.Name(), contextualType)
+			}
 			if contextualType != nil && checkMode&CheckModeInferential != 0 && checkMode&CheckModeSkipContextSensitive == 0 && (ast.IsPropertyAssignment(memberDecl) || ast.IsMethodDeclaration(memberDecl)) && c.isContextSensitive(memberDecl) {
 				inferenceContext := c.getInferenceContext(node)
 				// In CheckMode.Inferential we should always have an inference context
@@ -13345,6 +13353,19 @@ func (c *Checker) checkObjectLiteral(node *ast.Node, checkMode CheckMode) *Type 
 		})
 	}
 	return createObjectLiteralType()
+}
+
+func (c *Checker) checkDeprecatedProperty(name *ast.IdentifierNode, contextualType *Type) {
+	if contextualType == nil || name == nil {
+		return
+	}
+	prop := c.getPropertyOfType(contextualType, name.Text())
+	if prop == nil || len(prop.Declarations) == 0 {
+		return
+	}
+	if c.isDeprecatedSymbol(prop) {
+		c.addDeprecatedSuggestion(name, prop.Declarations, name.Text())
+	}
 }
 
 func (c *Checker) checkSpreadPropOverrides(t *Type, props ast.SymbolTable, spread *ast.Node) {
@@ -22332,10 +22353,9 @@ func (c *Checker) getObjectTypeInstantiation(t *Type, m *TypeMapper, alias *Type
 	// We are instantiating an anonymous type that has one or more type parameters in scope. Apply the
 	// mapper to the type parameters to produce the effective list of type arguments, and compute the
 	// instantiation cache key from the type IDs of the type arguments.
-	combinedMapper := c.combineTypeMappers(t.Mapper(), m)
 	typeArguments := make([]*Type, len(typeParameters))
 	for i, tp := range typeParameters {
-		typeArguments[i] = combinedMapper.Map(tp)
+		typeArguments[i] = c.mapTypeWithCompositeMapper(tp, t.Mapper(), m)
 	}
 	newAlias := alias
 	if newAlias == nil {
@@ -26375,31 +26395,36 @@ func (c *Checker) intersectUnionsOfPrimitiveTypes(types []*Type) ([]*Type, bool)
 // primitive type, and missingType is matched by undefinedType (and vice versa).
 func (c *Checker) eachUnionContains(unionTypes []*Type, t *Type) bool {
 	for _, u := range unionTypes {
-		types := u.Types()
-		if !containsType(types, t) {
-			if t == c.missingType {
-				return containsType(types, c.undefinedType)
-			}
-			if t == c.undefinedType {
-				return containsType(types, c.missingType)
-			}
-			var primitive *Type
-			switch {
-			case t.flags&TypeFlagsStringLiteral != 0:
-				primitive = c.stringType
-			case t.flags&(TypeFlagsEnum|TypeFlagsNumberLiteral) != 0:
-				primitive = c.numberType
-			case t.flags&TypeFlagsBigIntLiteral != 0:
-				primitive = c.bigintType
-			case t.flags&TypeFlagsUniqueESSymbol != 0:
-				primitive = c.esSymbolType
-			}
-			if primitive == nil || !containsType(types, primitive) {
-				return false
-			}
+		if !c.unionContainsType(u, t, true /*matchSymbol*/) {
+			return false
 		}
 	}
 	return true
+}
+
+func (c *Checker) unionContainsType(union *Type, t *Type, matchSymbol bool) bool {
+	types := union.Types()
+	if containsType(types, t) {
+		return true
+	}
+	if t == c.missingType {
+		return containsType(types, c.undefinedType)
+	}
+	if t == c.undefinedType {
+		return containsType(types, c.missingType)
+	}
+	var primitive *Type
+	switch {
+	case t.flags&TypeFlagsStringLiteral != 0:
+		primitive = c.stringType
+	case t.flags&(TypeFlagsEnum|TypeFlagsNumberLiteral) != 0:
+		primitive = c.numberType
+	case t.flags&TypeFlagsBigIntLiteral != 0:
+		primitive = c.bigintType
+	case t.flags&TypeFlagsUniqueESSymbol != 0 && matchSymbol:
+		primitive = c.esSymbolType
+	}
+	return primitive != nil && containsType(types, primitive)
 }
 
 func (c *Checker) getCrossProductIntersections(types []*Type, flags IntersectionFlags) []*Type {
@@ -26567,7 +26592,25 @@ func (c *Checker) filterType(t *Type, f func(*Type) bool) *Type {
 }
 
 func (c *Checker) removeType(t *Type, targetType *Type) *Type {
-	return c.filterType(t, func(t *Type) bool { return t != targetType })
+	if t.flags&TypeFlagsUnion == 0 {
+		if t == targetType {
+			return c.neverType
+		}
+		return t
+	}
+	if origin := t.AsUnionType().origin; origin != nil && origin.flags&TypeFlagsUnion != 0 && containsType(origin.Types(), targetType) {
+		return c.filterType(t, func(t *Type) bool { return t != targetType })
+	}
+	types := t.Types()
+	if i, ok := slices.BinarySearchFunc(types, targetType, CompareTypes); ok {
+		if len(types) == 2 {
+			return types[1-i]
+		}
+		// Remove the target type from the slice.
+		filtered := append(types[:i:i], types[i+1:]...)
+		return c.getUnionTypeFromSortedList(filtered, t.AsUnionType().objectFlags&(ObjectFlagsPrimitiveUnion|ObjectFlagsContainsIntersections), nil /*alias*/, nil /*origin*/)
+	}
+	return t
 }
 
 func containsType(types []*Type, t *Type) bool {
@@ -27769,6 +27812,43 @@ func (c *Checker) isUnknownLikeUnionType(t *Type) bool {
 		return t.objectFlags&ObjectFlagsIsUnknownLikeUnion != 0
 	}
 	return false
+}
+
+// Return true the given type is a primitive union type where no two literal type constituents are
+// comparable. Specifically, that means (a) the union doesn't contain literals from different enum
+// types, and (b) the union doesn't contain both enum literals and string or number literals.
+func (c *Checker) isUniformUnionType(t *Type) bool {
+	if t.objectFlags&ObjectFlagsPrimitiveUnion != 0 {
+		if t.objectFlags&ObjectFlagsIsUniformEnumComputed == 0 {
+			t.objectFlags |= ObjectFlagsIsUniformEnumComputed | core.IfElse(c.computeIsUniformUnionType(t.Types()), ObjectFlagsIsUniformEnum, ObjectFlagsNone)
+		}
+		return t.objectFlags&ObjectFlagsIsUniformEnum != 0
+	}
+	return false
+}
+
+func (c *Checker) computeIsUniformUnionType(types []*Type) bool {
+	var enumSymbol *ast.Symbol
+	var hasStringOrNumberLiteral bool
+	for _, t := range types {
+		if t.flags&TypeFlagsEnumLike != 0 {
+			if hasStringOrNumberLiteral {
+				return false
+			}
+			parent := c.getParentOfSymbol(t.symbol)
+			if enumSymbol == nil {
+				enumSymbol = parent
+			} else if enumSymbol != parent {
+				return false
+			}
+		} else if t.flags&TypeFlagsStringOrNumberLiteral != 0 {
+			if enumSymbol != nil {
+				return false
+			}
+			hasStringOrNumberLiteral = true
+		}
+	}
+	return true
 }
 
 func (c *Checker) containsUndefinedType(t *Type) bool {
