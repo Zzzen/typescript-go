@@ -7,7 +7,7 @@ require (
 	github.com/go-json-experiment/json v0.0.0-20260623181947-01eb4420fa68
 	github.com/google/go-cmp v0.7.0
 	github.com/mackerelio/go-osstat v0.2.7
-	github.com/microsoft/typescript-go v0.0.0-20260731182708-5b1047d10d32
+	github.com/microsoft/typescript-go v0.0.0-20260807224926-24fabe95acba
 	github.com/peter-evans/patience v0.3.0
 	github.com/zeebo/xxh3 v1.1.0
 	golang.org/x/sync v0.21.0
