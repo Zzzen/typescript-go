@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
 
@@ -23,9 +24,10 @@ fo/**/`
 	defer done()
 	f.GoToMarker(t, "")
 	f.VerifyApplyCodeActionFromCompletion(t, new(""), &fourslash.ApplyCodeActionFromCompletionOptions{
-		Name:        "foo",
-		Source:      "./a",
-		Description: "Add import from \"./a\"",
+		Name:            "foo",
+		Source:          "./a",
+		Description:     "Add import from \"./a\"",
+		UserPreferences: &lsutil.UserPreferences{QuotePreference: lsutil.QuotePreference("single")},
 		NewFileContent: new(`import { foo } from './a';
 
 fo`),

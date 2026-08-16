@@ -13,6 +13,7 @@ import (
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/nativepath"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/osutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tspath"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/vfs/internal"
@@ -58,7 +59,7 @@ var isFileSystemCaseSensitive = func() bool {
 	// As a proxy for case-insensitivity, we check if the current executable exists under a different case.
 	// This is not entirely correct, since different OSs can have differing case sensitivity in different paths,
 	// but this is largely good enough for our purposes (and what sys.ts used to do with __filename).
-	exe, err := os.Executable()
+	exe, err := osutil.Executable()
 	if err != nil {
 		panic(fmt.Sprintf("vfs: failed to get executable path: %v", err))
 	}

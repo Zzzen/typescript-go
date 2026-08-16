@@ -8,6 +8,7 @@ import (
 
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
 	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -38,7 +39,11 @@ function fn3() {
         <butto/*3*/ style=""
     </>;
 }`
-	f, done := fourslash.NewFourslash(t, nil /*capabilities*/, content)
+	f, done := fourslash.NewFourslash(t, fourslash.GetDefaultCapabilitiesWithOptions(&fourslash.ClientCapabilitiesOptions{
+		CompletionItem: &lsproto.ClientCompletionItemOptions{
+			SnippetSupport: new(true),
+		},
+	}), content)
 	defer done()
 	f.VerifyCompletions(t, "1", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
@@ -54,6 +59,7 @@ function fn3() {
 				},
 			},
 		},
+		UserPreferences: &lsutil.UserPreferences{JsxAttributeCompletionStyle: lsutil.JsxAttributeCompletionStyleBraces},
 	})
 	f.VerifyCompletions(t, "2", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
@@ -69,6 +75,7 @@ function fn3() {
 				},
 			},
 		},
+		UserPreferences: &lsutil.UserPreferences{JsxAttributeCompletionStyle: lsutil.JsxAttributeCompletionStyleBraces},
 	})
 	f.VerifyCompletions(t, "3", &fourslash.CompletionsExpectedList{
 		IsIncomplete: false,
@@ -84,5 +91,6 @@ function fn3() {
 				},
 			},
 		},
+		UserPreferences: &lsutil.UserPreferences{JsxAttributeCompletionStyle: lsutil.JsxAttributeCompletionStyleBraces},
 	})
 }

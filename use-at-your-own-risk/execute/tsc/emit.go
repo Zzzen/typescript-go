@@ -11,6 +11,7 @@ import (
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/collections"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/compiler"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/diagnostics"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/execute/incremental"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/locale"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tracing"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/tsoptions"
@@ -98,6 +99,15 @@ func EmitFilesAndReportErrors(input EmitInput) (result CompileAndEmitResult) {
 			checkStart := input.Sys.Now()
 			diags := input.ProgramLike.GetSemanticDiagnostics(ctx, file)
 			result.times.checkTime = input.Sys.Now().Sub(checkStart)
+			if program, ok := input.ProgramLike.(*incremental.Program); ok {
+				nestedEmitTime := program.TakeNestedEmitTime()
+				if nestedEmitTime > result.times.checkTime {
+					result.times.checkTime = 0
+				} else {
+					result.times.checkTime -= nestedEmitTime
+				}
+				result.times.emitTime += nestedEmitTime
+			}
 			return diags
 		},
 	)
@@ -108,7 +118,7 @@ func EmitFilesAndReportErrors(input EmitInput) (result CompileAndEmitResult) {
 		emitResult = input.ProgramLike.Emit(ctx, compiler.EmitOptions{
 			WriteFile: input.WriteFile,
 		})
-		result.times.emitTime = input.Sys.Now().Sub(emitStart)
+		result.times.emitTime += input.Sys.Now().Sub(emitStart)
 	}
 	if emitResult != nil {
 		allDiagnostics = append(allDiagnostics, emitResult.Diagnostics...)

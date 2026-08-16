@@ -6,8 +6,10 @@ package fourslash_test
 import (
 	"testing"
 
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
 	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -45,5 +47,6 @@ export default abstract class ExpressionParser extends Tokenizer {
 				},
 			},
 		},
+		UserPreferences: &lsutil.UserPreferences{IncludeCompletionsWithClassMemberSnippets: core.TSTrue},
 	})
 }

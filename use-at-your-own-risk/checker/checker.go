@@ -2502,7 +2502,7 @@ func (c *Checker) checkDeferredNodes(context *ast.SourceFile) {
 		}
 		c.checkDeferredNode(node)
 	}
-	links.deferredNodes.Clear()
+	links.deferredNodes = collections.OrderedSet[*ast.Node]{}
 }
 
 func (c *Checker) checkDeferredNode(node *ast.Node) {
@@ -2537,6 +2537,8 @@ func (c *Checker) checkDeferredNode(node *ast.Node) {
 		if ast.IsInstanceOfExpression(node) {
 			c.resolveUntypedCall(node)
 		}
+	case ast.KindObjectLiteralExpression, ast.KindJsxAttributes:
+		c.checkContextualDeprecations(node)
 	}
 	c.currentNode = saveCurrentNode
 }
@@ -2845,7 +2847,7 @@ func (c *Checker) checkConstructorDeclaration(node *ast.Node) {
 	// Constructors of classes with no extends clause may not contain super calls, whereas
 	// constructors of derived classes must contain at least one super call somewhere in their function body.
 	containingClassDecl := node.Parent
-	if ast.GetExtendsHeritageClauseElement(containingClassDecl) == nil {
+	if ast.GetClassExtendsHeritageElement(containingClassDecl) == nil {
 		return
 	}
 	classExtendsNull := c.classDeclarationExtendsNull(containingClassDecl)
@@ -4316,7 +4318,7 @@ func (c *Checker) checkClassLikeDeclaration(node *ast.Node) {
 		c.checkClassForStaticPropertyNameConflicts(node)
 	}
 
-	baseTypeNode := ast.GetExtendsHeritageClauseElement(node)
+	baseTypeNode := ast.GetClassExtendsHeritageElement(node)
 	if baseTypeNode != nil {
 		c.checkSourceElements(baseTypeNode.TypeArguments())
 		baseTypes := c.getBaseTypes(classType)
@@ -4369,9 +4371,11 @@ func (c *Checker) checkClassLikeDeclaration(node *ast.Node) {
 	c.checkMembersForOverrideModifier(node, classType, typeWithThis, staticType)
 	implementedTypeNodes := ast.GetImplementsHeritageClauseElements(node)
 	for _, typeRefNode := range implementedTypeNodes {
-		expr := typeRefNode.Expression()
-		if !ast.IsEntityNameExpression(expr) || ast.IsOptionalChain(expr) {
-			c.error(expr, diagnostics.A_class_can_only_implement_an_identifier_Slashqualified_name_with_optional_type_arguments)
+		if ast.IsExpressionWithTypeArguments(typeRefNode) {
+			expr := typeRefNode.Expression()
+			if !ast.IsEntityNameExpression(expr) || ast.IsOptionalChain(expr) {
+				c.error(expr, diagnostics.A_class_can_only_implement_an_identifier_Slashqualified_name_with_optional_type_arguments)
+			}
 		}
 		c.checkTypeReferenceNode(typeRefNode)
 		t := c.getReducedType(c.getTypeFromTypeNode(typeRefNode))
@@ -4708,7 +4712,7 @@ func (c *Checker) isPropertyAbstractOrInterface(declaration *ast.Node, baseDecla
 
 func (c *Checker) checkMembersForOverrideModifier(node *ast.Node, t *Type, typeWithThis *Type, staticType *Type) {
 	var baseWithThis *Type
-	baseTypeNode := ast.GetExtendsHeritageClauseElement(node)
+	baseTypeNode := ast.GetClassExtendsHeritageElement(node)
 	if baseTypeNode != nil {
 		baseTypes := c.getBaseTypes(t)
 		if len(baseTypes) > 0 {
@@ -4732,56 +4736,95 @@ func (c *Checker) checkMembersForOverrideModifier(node *ast.Node, t *Type, typeW
 }
 
 func (c *Checker) checkMemberForOverrideModifier(node *ast.Node, staticType *Type, baseStaticType *Type, baseWithThis *Type, t *Type, typeWithThis *Type, member *ast.Node) {
-	isJs := ast.IsInJSFile(node)
-	memberHasOverrideModifier := hasOverrideModifier(member)
-	if baseWithThis == nil {
-		if memberHasOverrideModifier {
-			c.error(member, core.IfElse(isJs, diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_its_containing_class_0_does_not_extend_another_class, diagnostics.This_member_cannot_have_an_override_modifier_because_its_containing_class_0_does_not_extend_another_class), c.TypeToString(t))
-		}
-		return
-	}
-	if sym := member.Symbol(); memberHasOverrideModifier && sym != nil && sym.ValueDeclaration != nil && ast.IsClassElement(member) && member.Name() != nil && c.isNonBindableDynamicName(member.Name()) {
-		c.error(member, core.IfElse(isJs, diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_its_name_is_dynamic, diagnostics.This_member_cannot_have_an_override_modifier_because_its_name_is_dynamic))
-		return
-	}
-	if !memberHasOverrideModifier && !c.compilerOptions.NoImplicitOverride.IsTrue() {
-		return
-	}
-	// Here we have a base class and also an override modifier or no override modifier in noImplicitOverride mode
 	symbol := c.getSymbolOfDeclaration(member)
 	if symbol == nil {
 		return
 	}
-	memberIsStatic := ast.IsStatic(member)
-	thisType := core.IfElse(memberIsStatic, staticType, typeWithThis)
-	prop := c.getPropertyOfType(thisType, symbol.Name)
-	if prop == nil {
-		return
+
+	c.checkMemberForOverrideModifierWorker(node, staticType, baseStaticType, baseWithThis, t, typeWithThis, hasOverrideModifier(member), ast.HasAbstractModifier(member), ast.IsStatic(member), ast.IsParameterDeclaration(member), symbol, member)
+}
+
+func (c *Checker) getMemberOverrideModifierStatus(node *ast.Node, member *ast.Node, memberSymbol *ast.Symbol) MemberOverrideStatus {
+	if member.Name() == nil || memberSymbol == nil {
+		return MemberOverrideStatusNone
 	}
-	baseType := core.IfElse(memberIsStatic, baseStaticType, baseWithThis)
-	baseProp := c.getPropertyOfType(baseType, symbol.Name)
-	if baseProp == nil && memberHasOverrideModifier {
-		suggestion := c.getSuggestedSymbolForNonexistentClassMember(ast.SymbolName(symbol), baseType)
-		if suggestion != nil {
-			c.error(member, core.IfElse(isJs, diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_it_is_not_declared_in_the_base_class_0_Did_you_mean_1, diagnostics.This_member_cannot_have_an_override_modifier_because_it_is_not_declared_in_the_base_class_0_Did_you_mean_1), c.TypeToString(baseWithThis), c.symbolToString(suggestion))
-			return
-		}
-		c.error(member, core.IfElse(isJs, diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_it_is_not_declared_in_the_base_class_0, diagnostics.This_member_cannot_have_an_override_modifier_because_it_is_not_declared_in_the_base_class_0), c.TypeToString(baseWithThis))
-		return
+
+	classSymbol := c.getSymbolOfDeclaration(node)
+	if classSymbol == nil {
+		return MemberOverrideStatusNone
 	}
-	if baseProp != nil && len(baseProp.Declarations) != 0 && !memberHasOverrideModifier && c.compilerOptions.NoImplicitOverride.IsTrue() && node.Flags&ast.NodeFlagsAmbient == 0 {
-		baseHasAbstract := core.Some(baseProp.Declarations, ast.HasAbstractModifier)
-		if !baseHasAbstract {
-			message := core.IfElse(ast.IsParameterDeclaration(member),
-				core.IfElse(isJs, diagnostics.This_parameter_property_must_have_a_JSDoc_comment_with_an_override_tag_because_it_overrides_a_member_in_the_base_class_0, diagnostics.This_parameter_property_must_have_an_override_modifier_because_it_overrides_a_member_in_base_class_0),
-				core.IfElse(isJs, diagnostics.This_member_must_have_a_JSDoc_comment_with_an_override_tag_because_it_overrides_a_member_in_the_base_class_0, diagnostics.This_member_must_have_an_override_modifier_because_it_overrides_a_member_in_the_base_class_0))
-			c.error(member, message, c.TypeToString(baseWithThis))
-			return
-		}
-		if ast.HasAbstractModifier(member) && baseHasAbstract {
-			c.error(member, diagnostics.This_member_must_have_an_override_modifier_because_it_overrides_an_abstract_method_that_is_declared_in_the_base_class_0, c.TypeToString(baseWithThis))
+
+	t := c.getDeclaredTypeOfSymbol(classSymbol)
+	typeWithThis := c.getTypeWithThisArgument(t, nil, false)
+	staticType := c.getTypeOfSymbol(classSymbol)
+
+	var baseWithThis *Type
+	if ast.GetClassExtendsHeritageElement(node) != nil {
+		baseTypes := c.getBaseTypes(t)
+		if len(baseTypes) > 0 {
+			baseWithThis = c.getTypeWithThisArgument(baseTypes[0], t.AsInterfaceType().thisType, false)
 		}
 	}
+
+	return c.checkMemberForOverrideModifierWorker(node, staticType, c.getBaseConstructorTypeOfClass(t), baseWithThis, t, typeWithThis, ast.HasSyntacticModifier(member, ast.ModifierFlagsOverride), ast.HasAbstractModifier(member), ast.IsStatic(member), false /*memberIsParameterProperty*/, memberSymbol, nil /*errorNode*/)
+}
+
+func (c *Checker) checkMemberForOverrideModifierWorker(node *ast.Node, staticType *Type, baseStaticType *Type, baseWithThis *Type, t *Type, typeWithThis *Type, memberHasOverrideModifier bool, memberHasAbstractModifier bool, memberIsStatic bool, memberIsParameterProperty bool, member *ast.Symbol, errorNode *ast.Node) MemberOverrideStatus {
+	isJs := ast.IsInJSFile(node)
+	if memberHasOverrideModifier && member.ValueDeclaration != nil && ast.IsClassElement(member.ValueDeclaration) && member.ValueDeclaration.Name() != nil && c.isNonBindableDynamicName(member.ValueDeclaration.Name()) {
+		if errorNode != nil {
+			c.error(errorNode, core.IfElse(isJs, diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_its_name_is_dynamic, diagnostics.This_member_cannot_have_an_override_modifier_because_its_name_is_dynamic))
+		}
+		return MemberOverrideStatusHasInvalidOverride
+	}
+
+	if baseWithThis != nil && (memberHasOverrideModifier || c.compilerOptions.NoImplicitOverride.IsTrue()) {
+		thisType := core.IfElse(memberIsStatic, staticType, typeWithThis)
+		baseType := core.IfElse(memberIsStatic, baseStaticType, baseWithThis)
+		prop := c.getPropertyOfType(thisType, member.Name)
+		baseProp := c.getPropertyOfType(baseType, member.Name)
+
+		if prop != nil && baseProp == nil && memberHasOverrideModifier {
+			if errorNode != nil {
+				suggestion := c.getSuggestedSymbolForNonexistentClassMember(ast.SymbolName(member), baseType)
+				if suggestion != nil {
+					c.error(errorNode, core.IfElse(isJs, diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_it_is_not_declared_in_the_base_class_0_Did_you_mean_1, diagnostics.This_member_cannot_have_an_override_modifier_because_it_is_not_declared_in_the_base_class_0_Did_you_mean_1), c.TypeToString(baseWithThis), c.symbolToString(suggestion))
+				} else {
+					c.error(errorNode, core.IfElse(isJs, diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_it_is_not_declared_in_the_base_class_0, diagnostics.This_member_cannot_have_an_override_modifier_because_it_is_not_declared_in_the_base_class_0), c.TypeToString(baseWithThis))
+				}
+			}
+			return MemberOverrideStatusHasInvalidOverride
+		}
+
+		if prop != nil && baseProp != nil && len(baseProp.Declarations) > 0 && c.compilerOptions.NoImplicitOverride.IsTrue() && node.Flags&ast.NodeFlagsAmbient == 0 {
+			baseHasAbstract := core.Some(baseProp.Declarations, ast.HasAbstractModifier)
+			if memberHasOverrideModifier {
+				return MemberOverrideStatusNone
+			}
+			if !baseHasAbstract {
+				if errorNode != nil {
+					message := core.IfElse(memberIsParameterProperty,
+						core.IfElse(isJs, diagnostics.This_parameter_property_must_have_a_JSDoc_comment_with_an_override_tag_because_it_overrides_a_member_in_the_base_class_0, diagnostics.This_parameter_property_must_have_an_override_modifier_because_it_overrides_a_member_in_base_class_0),
+						core.IfElse(isJs, diagnostics.This_member_must_have_a_JSDoc_comment_with_an_override_tag_because_it_overrides_a_member_in_the_base_class_0, diagnostics.This_member_must_have_an_override_modifier_because_it_overrides_a_member_in_the_base_class_0))
+					c.error(errorNode, message, c.TypeToString(baseWithThis))
+				}
+				return MemberOverrideStatusNeedsOverride
+			}
+			if memberHasAbstractModifier {
+				if errorNode != nil {
+					c.error(errorNode, diagnostics.This_member_must_have_an_override_modifier_because_it_overrides_an_abstract_method_that_is_declared_in_the_base_class_0, c.TypeToString(baseWithThis))
+				}
+				return MemberOverrideStatusNeedsOverride
+			}
+		}
+	} else if memberHasOverrideModifier {
+		if errorNode != nil {
+			c.error(errorNode, core.IfElse(isJs, diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_its_containing_class_0_does_not_extend_another_class, diagnostics.This_member_cannot_have_an_override_modifier_because_its_containing_class_0_does_not_extend_another_class), c.TypeToString(t))
+		}
+		return MemberOverrideStatusHasInvalidOverride
+	}
+
+	return MemberOverrideStatusNone
 }
 
 func (c *Checker) getSuggestedSymbolForNonexistentClassMember(name string, baseType *Type) *ast.Symbol {
@@ -5020,9 +5063,11 @@ func (c *Checker) checkInterfaceDeclaration(node *ast.Node) {
 	}
 	c.checkObjectTypeForDuplicateDeclarations(node, false /*checkPrivateNames*/)
 	for _, heritageElement := range ast.GetExtendsHeritageClauseElements(node) {
-		expr := heritageElement.Expression()
-		if !ast.IsEntityNameExpression(expr) || ast.IsOptionalChain(expr) {
-			c.error(expr, diagnostics.An_interface_can_only_extend_an_identifier_Slashqualified_name_with_optional_type_arguments)
+		if ast.IsExpressionWithTypeArguments(heritageElement) {
+			expr := heritageElement.Expression()
+			if !ast.IsEntityNameExpression(expr) || ast.IsOptionalChain(expr) {
+				c.error(expr, diagnostics.An_interface_can_only_extend_an_identifier_Slashqualified_name_with_optional_type_arguments)
+			}
 		}
 		c.checkTypeReferenceNode(heritageElement)
 	}
@@ -6843,7 +6888,7 @@ func (c *Checker) checkAliasSymbol(node *ast.Node) {
 		}
 		if c.compilerOptions.VerbatimModuleSyntax.IsTrue() && !ast.IsImportEqualsDeclaration(node) && !ast.IsInJSFile(node) && c.program.GetEmitModuleFormatOfFile(ast.GetSourceFileOfNode(node)) == core.ModuleKindCommonJS {
 			c.error(node, getVerbatimModuleSyntaxErrorMessage(node))
-		} else if c.moduleKind == core.ModuleKindPreserve && !ast.IsImportEqualsDeclaration(node) && !ast.IsVariableDeclaration(node) && c.program.GetEmitModuleFormatOfFile(ast.GetSourceFileOfNode(node)) == core.ModuleKindCommonJS {
+		} else if c.moduleKind == core.ModuleKindPreserve && !ast.IsImportEqualsDeclaration(node) && !ast.IsVariableDeclaration(node) && !ast.IsBindingElement(node) && c.program.GetEmitModuleFormatOfFile(ast.GetSourceFileOfNode(node)) == core.ModuleKindCommonJS {
 			// In `--module preserve`, ESM input syntax emits ESM output syntax, but there will be times
 			// when we look at the `impliedNodeFormat` of this file and decide it's CommonJS (i.e., currently,
 			// only if the file extension is .cjs/.cts). To avoid that inconsistency, we disallow ESM syntax
@@ -7925,7 +7970,7 @@ func (c *Checker) checkSuperExpression(node *ast.Node) *Type {
 	}
 	// at this point the only legal case for parent is ClassLikeDeclaration
 	classLikeDeclaration := container.Parent
-	if ast.GetExtendsHeritageClauseElement(classLikeDeclaration) == nil {
+	if ast.GetClassExtendsHeritageElement(classLikeDeclaration) == nil {
 		c.error(node, diagnostics.X_super_can_only_be_referenced_in_a_derived_class)
 		return c.errorType
 	}
@@ -8486,7 +8531,7 @@ func (c *Checker) resolveCallExpression(node *ast.Node, candidatesOutArray *[]*S
 		if !c.isErrorType(superType) {
 			// In super call, the candidate signatures are the matching arity signatures of the base constructor function instantiated
 			// with the type arguments specified in the extends clause.
-			baseTypeNode := ast.GetExtendsHeritageClauseElement(ast.GetContainingClass(node))
+			baseTypeNode := ast.GetClassExtendsHeritageElement(ast.GetContainingClass(node))
 			if baseTypeNode != nil {
 				baseConstructors := c.getInstantiatedConstructorsForTypeArguments(superType, baseTypeNode.TypeArguments(), baseTypeNode)
 				return c.resolveCall(node, baseConstructors, candidatesOutArray, checkMode, SignatureFlagsNone, nil)
@@ -8767,7 +8812,7 @@ func (c *Checker) resolveDecorator(node *ast.Node, candidatesOutArray *[]*Signat
 	headMessage := c.getDiagnosticHeadMessageForDecoratorResolution(node)
 	if len(callSignatures) == 0 {
 		diag := ast.NewDiagnosticChain(c.invocationErrorDetails(node.Expression(), apparentType, SignatureKindCall), headMessage)
-		c.addDiagnostic(diag)
+		diag = c.addDiagnostic(diag)
 		c.invocationErrorRecovery(apparentType, SignatureKindCall, diag)
 		return c.resolveErrorCall(node)
 	}
@@ -10003,7 +10048,7 @@ func (c *Checker) invocationError(errorTarget *ast.Node, apparentType *Type, kin
 	if relatedInformation != nil {
 		diagnostic.AddRelatedInfo(relatedInformation)
 	}
-	c.addDiagnostic(diagnostic)
+	diagnostic = c.addDiagnostic(diagnostic)
 	c.invocationErrorRecovery(apparentType, kind, diagnostic)
 }
 
@@ -11678,15 +11723,16 @@ func (c *Checker) checkAndReportErrorForExtendingInterface(errorLocation *ast.No
 }
 
 /**
- * Climbs up parents to an ExpressionWithTypeArguments, and returns its expression,
- * but returns undefined if that expression is not an EntityNameExpression.
+ * Climbs up parents to a heritage clause element and returns its entity name.
  */
 func (c *Checker) getEntityNameForExtendingInterface(node *ast.Node) *ast.Node {
 	switch node.Kind {
-	case ast.KindIdentifier, ast.KindPropertyAccessExpression:
+	case ast.KindIdentifier, ast.KindQualifiedName, ast.KindPropertyAccessExpression:
 		if node.Parent != nil {
 			return c.getEntityNameForExtendingInterface(node.Parent)
 		}
+	case ast.KindTypeReference:
+		return node.AsTypeReferenceNode().TypeName
 	case ast.KindExpressionWithTypeArguments:
 		if ast.IsEntityNameExpression(node.Expression()) {
 			return node.Expression()
@@ -12267,7 +12313,7 @@ func (c *Checker) checkThisInStaticClassFieldInitializerInDecoratedClass(thisExp
 
 func (c *Checker) checkThisBeforeSuper(node *ast.Node, container *ast.Node, diagnosticMessage *diagnostics.Message) {
 	containingClassDecl := container.Parent
-	baseTypeNode := ast.GetExtendsHeritageClauseElement(containingClassDecl)
+	baseTypeNode := ast.GetClassExtendsHeritageElement(containingClassDecl)
 	// If a containing class does not have extends clause or the class extends null
 	// skip checking whether super statement is called before "this" accessing.
 	if baseTypeNode != nil && !c.classDeclarationExtendsNull(containingClassDecl) {
@@ -13157,6 +13203,7 @@ func (c *Checker) checkObjectLiteral(node *ast.Node, checkMode CheckMode) *Type 
 		// is nothing to check here.
 		return result //nolint:customlint // expando object literal has no property children to check
 	}
+	c.checkNodeDeferred(node)
 	inDestructuringPattern := ast.IsAssignmentTarget(node)
 	// Grammar checking
 	c.checkGrammarObjectLiteralExpression(node.AsObjectLiteralExpression(), inDestructuringPattern)
@@ -13273,9 +13320,6 @@ func (c *Checker) checkObjectLiteral(node *ast.Node, checkMode CheckMode) *Type 
 			if allPropertiesTable != nil {
 				allPropertiesTable[prop.Name] = prop
 			}
-			if ast.IsIdentifier(memberDecl.Name()) {
-				c.checkDeprecatedProperty(memberDecl.Name(), contextualType)
-			}
 			if contextualType != nil && checkMode&CheckModeInferential != 0 && checkMode&CheckModeSkipContextSensitive == 0 && (ast.IsPropertyAssignment(memberDecl) || ast.IsMethodDeclaration(memberDecl)) && c.isContextSensitive(memberDecl) {
 				inferenceContext := c.getInferenceContext(node)
 				// In CheckMode.Inferential we should always have an inference context
@@ -13360,8 +13404,20 @@ func (c *Checker) checkObjectLiteral(node *ast.Node, checkMode CheckMode) *Type 
 	return createObjectLiteralType()
 }
 
-func (c *Checker) checkDeprecatedProperty(name *ast.IdentifierNode, contextualType *Type) {
-	if contextualType == nil || name == nil {
+func (c *Checker) checkContextualDeprecations(node *ast.Node) {
+	contextualType := c.getApparentTypeOfContextualType(node, ContextFlagsNone)
+	for _, property := range node.Properties() {
+		if c.isCanceled() {
+			return
+		}
+		if property.Name() != nil && !ast.IsComputedPropertyName(property.Name()) {
+			c.checkDeprecatedProperty(property.Name(), contextualType)
+		}
+	}
+}
+
+func (c *Checker) checkDeprecatedProperty(name *ast.Node, contextualType *Type) {
+	if contextualType == nil {
 		return
 	}
 	prop := c.getPropertyOfType(contextualType, name.Text())
@@ -13968,7 +14024,7 @@ func (c *Checker) getDiagnostics(ctx context.Context, sourceFile *ast.SourceFile
 	if c.wasCanceled {
 		return nil
 	}
-	return collection.GetDiagnosticsForFile(sourceFile.FileName())
+	return collection.GetDiagnosticsForFile(sourceFile)
 }
 
 func (c *Checker) GetGlobalDiagnostics() []*ast.Diagnostic {
@@ -13987,24 +14043,24 @@ func (c *Checker) produceDeferredDiagnostics() {
 	c.deferredDiagnosticCallbacks = nil
 }
 
-func (c *Checker) addDiagnostic(diagnostic *ast.Diagnostic) {
+func (c *Checker) addDiagnostic(diagnostic *ast.Diagnostic) *ast.Diagnostic {
 	// Discard diagnostics created while at the maximum number of recursive TypeToString invocations.
 	if c.serializationLevel < maxSerializationLevel {
-		c.diagnostics.Add(diagnostic)
+		return c.diagnostics.Add(diagnostic)
 	}
+	return diagnostic
 }
 
-func (c *Checker) addSuggestionDiagnostic(diagnostic *ast.Diagnostic) {
+func (c *Checker) addSuggestionDiagnostic(diagnostic *ast.Diagnostic) *ast.Diagnostic {
 	// Discard diagnostics created while at the maximum number of recursive TypeToString invocations.
 	if c.serializationLevel < maxSerializationLevel {
-		c.suggestionDiagnostics.Add(diagnostic)
+		return c.suggestionDiagnostics.Add(diagnostic)
 	}
+	return diagnostic
 }
 
 func (c *Checker) error(location *ast.Node, message *diagnostics.Message, args ...any) *ast.Diagnostic {
-	diagnostic := NewDiagnosticForNode(location, message, args...)
-	c.addDiagnostic(diagnostic)
-	return diagnostic
+	return c.addDiagnostic(NewDiagnosticForNode(location, message, args...))
 }
 
 func (c *Checker) errorSkippedOnNoEmit(location *ast.Node, message *diagnostics.Message, args ...any) *ast.Diagnostic {
@@ -14052,8 +14108,7 @@ func (c *Checker) addDeprecatedSuggestionWorker(declarations []*ast.Node, diagno
 			break
 		}
 	}
-	c.addSuggestionDiagnostic(diagnostic)
-	return diagnostic
+	return c.addSuggestionDiagnostic(diagnostic)
 }
 
 func (c *Checker) isDeprecatedSymbol(symbol *ast.Symbol) bool {
@@ -14273,13 +14328,7 @@ func getAdjustedNodeForError(node *ast.Node) *ast.Node {
 }
 
 func (c *Checker) lookupOrIssueError(location *ast.Node, message *diagnostics.Message, args ...any) *ast.Diagnostic {
-	diagnostic := NewDiagnosticForNode(location, message, args...)
-	existing := c.diagnostics.Lookup(diagnostic)
-	if existing != nil {
-		return existing
-	}
-	c.addDiagnostic(diagnostic)
-	return diagnostic
+	return c.addDiagnostic(NewDiagnosticForNode(location, message, args...))
 }
 
 func getFirstDeclaration(symbol *ast.Symbol) *ast.Node {
@@ -17366,8 +17415,9 @@ func (c *Checker) isThislessInterface(symbol *ast.Symbol) bool {
 			}
 			baseTypeNodes := ast.GetExtendsHeritageClauseElements(declaration)
 			for _, node := range baseTypeNodes {
-				if ast.IsEntityNameExpression(node.Expression()) {
-					baseSymbol := c.resolveEntityName(node.Expression(), ast.SymbolFlagsType, true /*ignoreErrors*/, false, nil)
+				name := ast.GetHeritageClauseElementName(node)
+				if ast.IsEntityName(name) || ast.IsEntityNameExpression(name) {
+					baseSymbol := c.resolveEntityName(name, ast.SymbolFlagsType, true /*ignoreErrors*/, false, nil)
 					if baseSymbol == nil || baseSymbol.Flags&ast.SymbolFlagsInterface == 0 || c.getDeclaredTypeOfClassOrInterface(baseSymbol).AsInterfaceType().thisType != nil {
 						return false
 					}
@@ -18335,7 +18385,11 @@ func (c *Checker) reportImplicitAny(declaration *ast.Node, t *Type, wideningKind
 		case !c.noImplicitAny:
 			diagnostic = diagnostics.X_0_implicitly_has_an_1_return_type_but_a_better_type_may_be_inferred_from_usage
 		case declaration.Flags&ast.NodeFlagsReparsed != 0:
-			c.error(declaration, diagnostics.This_overload_implicitly_returns_the_type_0_because_it_lacks_a_return_type_annotation, typeAsString)
+			if name := scanner.DeclarationNameToString(ast.GetNameOfDeclaration(declaration)); name != "" {
+				c.error(declaration, diagnostics.X_0_which_lacks_return_type_annotation_implicitly_has_an_1_return_type, name, typeAsString)
+			} else {
+				c.error(declaration, diagnostics.This_overload_implicitly_returns_the_type_0_because_it_lacks_a_return_type_annotation, typeAsString)
+			}
 			return
 		case wideningKind == WideningKindGeneratorYield:
 			diagnostic = diagnostics.X_0_which_lacks_return_type_annotation_implicitly_has_an_1_yield_type
@@ -19272,7 +19326,7 @@ func (c *Checker) resolveBaseTypesOfClass(t *Type) {
 func getBaseTypeNodeOfClass(t *Type) *ast.Node {
 	decl := ast.GetClassLikeDeclarationOfSymbol(t.symbol)
 	if decl != nil {
-		return ast.GetExtendsHeritageClauseElement(decl)
+		return ast.GetClassExtendsHeritageElement(decl)
 	}
 	return nil
 }
@@ -23740,21 +23794,30 @@ func (c *Checker) getTypeArgumentsForAliasSymbol(symbol *ast.Symbol) []*Type {
 }
 
 func (c *Checker) getOuterTypeParametersOfClassOrInterface(symbol *ast.Symbol) []*Type {
-	declaration := symbol.ValueDeclaration
-	if symbol.Flags&(ast.SymbolFlagsClass|ast.SymbolFlagsFunction) == 0 {
-		declaration = core.Find(symbol.Declarations, func(d *ast.Node) bool {
-			if ast.IsInterfaceDeclaration(d) {
-				return true
-			}
-			if !ast.IsVariableDeclaration(d) {
-				return false
-			}
-			initializer := d.Initializer()
-			return initializer != nil && ast.IsFunctionExpressionOrArrowFunction(initializer)
-		})
-	}
+	declaration := c.getClassOrInterfaceLikeDeclaration(symbol)
 	debug.Assert(declaration != nil, "Class was missing valueDeclaration -OR- non-class had no interface declarations")
 	return c.getOuterTypeParameters(declaration, false /*includeThisTypes*/)
+}
+
+// Returns the declaration used to obtain a class, interface, or function symbol's outer type parameters.
+func (c *Checker) getClassOrInterfaceLikeDeclaration(symbol *ast.Symbol) *ast.Node {
+	if symbol.Flags&(ast.SymbolFlagsClass|ast.SymbolFlagsFunction) != 0 {
+		return symbol.ValueDeclaration
+	}
+	return core.Find(symbol.Declarations, func(d *ast.Node) bool {
+		if ast.IsInterfaceDeclaration(d) {
+			return true
+		}
+		if !ast.IsVariableDeclaration(d) {
+			return false
+		}
+		initializer := d.Initializer()
+		return initializer != nil && ast.IsFunctionExpressionOrArrowFunction(initializer)
+	})
+}
+
+func (c *Checker) canGetTypeParametersOfClassOrInterface(symbol *ast.Symbol) bool {
+	return c.getClassOrInterfaceLikeDeclaration(symbol) != nil
 }
 
 // Return the outer type parameters of a node or undefined if the node has no outer type parameters.
@@ -23884,7 +23947,7 @@ func (c *Checker) getDeclaredTypeOfEnum(symbol *ast.Symbol) *Type {
 		for _, declaration := range symbol.Declarations {
 			if declaration.Kind == ast.KindEnumDeclaration {
 				for _, member := range declaration.Members() {
-					if c.hasBindableName(member) {
+					if !ast.HasDynamicName(member) {
 						memberSymbol := c.getSymbolOfDeclaration(member)
 						value := c.getEnumMemberValue(member).Value
 						var memberType *Type
@@ -28287,7 +28350,7 @@ func (c *Checker) markLinkedReferences(location *ast.Node, hint ReferenceHint, p
 				// `class C extends A, B`) and are never resolved during checking.
 				if ast.IsClassLike(heritageClause.Parent) &&
 					heritageClause.AsHeritageClause().Token == ast.KindExtendsKeyword {
-					if firstExtends := ast.GetExtendsHeritageClauseElement(heritageClause.Parent); firstExtends != nil &&
+					if firstExtends := ast.GetClassExtendsHeritageElement(heritageClause.Parent); firstExtends != nil &&
 						location != firstExtends && !ast.IsNodeDescendantOf(location, firstExtends) {
 						return
 					}
@@ -31818,11 +31881,11 @@ func (c *Checker) getSymbolOfNameOrPropertyAccessExpression(name *ast.Node) *ast
 		name = name.Parent
 	}
 
-	if isInNameOfExpressionWithTypeArguments(name) {
+	if isInNameOfExpressionWithTypeArgumentsOrHeritageTypeReference(name) {
 		var meaning ast.SymbolFlags
-		if name.Parent.Kind == ast.KindExpressionWithTypeArguments {
-			// An 'ExpressionWithTypeArguments' may appear in type space (interface Foo extends Bar<T>),
-			// value space (return foo<T>), or both(class Foo extends Bar<T>); ensure the meaning matches.
+		if name.Parent.Kind == ast.KindExpressionWithTypeArguments || name.Parent.Kind == ast.KindTypeReference {
+			// A heritage element name may appear in type space, value space, or both;
+			// ensure the meaning matches its context.
 			meaning = core.IfElse(ast.IsPartOfTypeNode(name), ast.SymbolFlagsType, ast.SymbolFlagsValue)
 
 			// In a class 'extends' clause we are also looking for a value.
@@ -31899,6 +31962,9 @@ func (c *Checker) getSymbolOfNameOrPropertyAccessExpression(name *ast.Node) *ast
 		if symbol != nil && symbol != c.unknownSymbol {
 			return symbol
 		}
+		if ast.IsNameOfHeritageClauseTypeReference(name) {
+			return nil
+		}
 		return c.getUnresolvedSymbolForEntityName(name)
 	}
 
@@ -31939,7 +32005,7 @@ func (c *Checker) getTypeOfNode(node *ast.Node) *Type {
 		return c.errorType
 	}
 
-	classDecl, isImplements := ast.TryGetClassImplementingOrExtendingExpressionWithTypeArguments(node)
+	classDecl, isImplements := ast.TryGetClassImplementingOrExtendingHeritageClauseElement(node)
 	var classType *Type
 	if classDecl != nil {
 		classType = c.getDeclaredTypeOfClassOrInterface(c.getSymbolOfDeclaration(classDecl))
@@ -31954,6 +32020,7 @@ func (c *Checker) getTypeOfNode(node *ast.Node) *Type {
 				false, /*needApparentType*/
 			)
 		}
+
 		return typeFromTypeNode
 	}
 

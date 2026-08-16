@@ -6,8 +6,10 @@ package fourslash_test
 import (
 	"testing"
 
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/core"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash"
 	. "github.com/Zzzen/typescript-go/use-at-your-own-risk/fourslash/tests/util"
+	"github.com/Zzzen/typescript-go/use-at-your-own-risk/ls/lsutil"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/lsp/lsproto"
 	"github.com/Zzzen/typescript-go/use-at-your-own-risk/testutil"
 )
@@ -84,6 +86,7 @@ export = Container;`
 				},
 			},
 		},
+		UserPreferences: &lsutil.UserPreferences{IncludeCompletionsWithClassMemberSnippets: core.TSTrue},
 	})
 	f.VerifyApplyCodeActionFromCompletion(t, new("1"), &fourslash.ApplyCodeActionFromCompletionOptions{
 		Name:        "parent",
@@ -103,5 +106,6 @@ declare abstract class Container_ extends Node {
 declare class Container extends Container_ {}
 
 export = Container;`),
+		UserPreferences: &lsutil.UserPreferences{IncludeCompletionsWithClassMemberSnippets: core.TSTrue},
 	})
 }
